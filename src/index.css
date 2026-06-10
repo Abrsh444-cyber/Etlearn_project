@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Georgia", "Playfair Display", serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-gold-cream: #F0EDE8;
+  --color-gold-muted: #8A8480;
+  --color-ethio-black: #0D0D0D;
+  --color-ethio-surface: #161616;
+  --color-ethio-gold: #C8962E;
+  --color-ethio-green: #1A7A3C;
+  --color-ethio-red: #BE1931;
+}
+
+/* Custom premium scrollbar - High Density style */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #0D0D0D;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #C8962E;
+  border-radius: 10px;
+}
+
+/* Global scrollbars mapping */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0D0D0D;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2A2A2A;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #C8962E;
+}
+
+/* Ethiopian serif helper */
+.ethio-serif {
+  font-family: 'Georgia', serif;
+}
+
+/* Accent board accent-border */
+.accent-border {
+  border-left: 3px solid #C8962E;
+}
+
+/* Glass panel */
+.glass {
+  background: rgba(22, 22, 22, 0.7);
+  backdrop-filter: blur(10px);
+}
+
+/* Premium gradient Pro badge */
+.pro-badge {
+  background: linear-gradient(45deg, #C8962E, #f0cf8e);
+  color: #000;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+/* Floating animation for Lalibela cross */
+@keyframes slow-rotate {
+  0% { transform: rotate(0deg); }
+  50% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.animate-slow-rotate {
+  animation: slow-rotate 25s linear infinite;
+}
+
+/* Shimmer load skeletons */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #161616 25%, #222222 50%, #161616 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+

@@ -1,0 +1,6 @@
+{
+  "name": "EthioLearn",
+  "description": "AI-powered learning platform with Ethiopian cultural identity, calendars, and flashcards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
