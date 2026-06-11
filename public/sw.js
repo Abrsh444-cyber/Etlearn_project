@@ -7,6 +7,8 @@ const CACHE_NAME = 'ethiolearn-pro-v1';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
+  '/manifest.json',
+  '/ethiolearn_icon.jpg',
   'https://cdn.jsdelivr.net/npm/chart.js'
 ];
 
