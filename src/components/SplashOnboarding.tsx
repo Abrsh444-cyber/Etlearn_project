@@ -27,6 +27,19 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
   ]);
   const [claudeApiKey, setClaudeApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
+
+  // Generate dynamic, beautiful background stars to create a premium cinematic space
+  const [starNodes] = useState(() => {
+    return Array.from({ length: 35 }).map((_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+      size: Math.random() * 2.5 + 0.8,
+      opacity: Math.random() * 0.7 + 0.3,
+      duration: 15 + Math.random() * 25,
+      delay: Math.random() * -20,
+    }));
+  });
   
   const subjectsList = [
     "Emerging Technologies",
@@ -79,75 +92,217 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
   };
 
   return (
-    <div className="fixed inset-0 bg-[#0D0D0D] z-50 flex flex-col items-center justify-center overflow-y-auto px-4 py-8 select-none">
+    <div className="fixed inset-0 bg-[#070707] z-50 flex flex-col items-center justify-center overflow-hidden px-4 select-none relative">
+      
+      {/* Dynamic Cinematic Motion Graphics Background Canvas */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black">
+        {/* Floating star nodes with drifting cinematic loops */}
+        {starNodes.map((star) => (
+          <motion.div
+            key={star.id}
+            initial={{ 
+              x: `${star.left}%`, 
+              y: `${star.top}%`, 
+              opacity: 0,
+              scale: 0.5 
+            }}
+            animate={{ 
+              y: [`${star.top}%`, `${(star.top + 8) % 100}%`, `${star.top}%`],
+              opacity: [star.opacity * 0.4, star.opacity, star.opacity * 0.4],
+              scale: [0.8, 1.25, 0.8]
+            }}
+            transition={{
+              duration: star.duration,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: star.delay
+            }}
+            style={{
+              position: 'absolute',
+              width: `${star.size}px`,
+              height: `${star.size}px`,
+              backgroundColor: star.id % 3 === 0 ? '#C8962E' : star.id % 3 === 1 ? '#1D4ED8' : '#e4e4e7',
+              borderRadius: '50%',
+              boxShadow: star.size > 2 ? `0 0 8px 1px ${star.id % 3 === 0 ? '#C8962E' : '#FFECA7'}` : 'none'
+            }}
+          />
+        ))}
+
+        {/* Ambient Pulsing Aura Orbs */}
+        <motion.div 
+          animate={{
+            scale: [1, 1.15, 0.9, 1],
+            opacity: [0.12, 0.22, 0.12],
+          }}
+          transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-1/4 left-1/4 w-[380px] h-[380px] rounded-full bg-emerald-950/20 blur-[130px]"
+        />
+        <motion.div 
+          animate={{
+            scale: [1.1, 0.9, 1.15, 1.1],
+            opacity: [0.1, 0.18, 0.1],
+          }}
+          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+          className="absolute bottom-1/4 right-1/4 w-[425px] h-[425px] rounded-full bg-amber-950/20 blur-[140px]"
+        />
+
+        {/* Traditional Geometric Habesha Bands with modern neon-wireframe style */}
+        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#C8962E]/30 to-transparent" />
+        <div className="absolute bottom-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-emerald-500/25 to-transparent" />
+        
+        {/* Subtle geometric wireframe side guidelines */}
+        <div className="absolute left-6 inset-y-0 w-[1px] bg-gradient-to-b from-transparent via-zinc-800/25 to-transparent hidden lg:block" />
+        <div className="absolute right-6 inset-y-0 w-[1px] bg-gradient-to-b from-transparent via-zinc-800/25 to-transparent hidden lg:block" />
+      </div>
+
       <AnimatePresence mode="wait">
         {step === 'splash' ? (
           <motion.div
             key="splash"
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.6 }}
-            className="text-center max-w-lg flex flex-col items-center"
+            exit={{ opacity: 0, y: -24, scale: 0.96 }}
+            transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+            className="text-center max-w-lg flex flex-col items-center relative z-10 w-full"
           >
-            {/* Official brand app icon logo */}
-            <div className="relative w-44 h-44 mb-8 flex items-center justify-center">
-              <div className="absolute inset-0 bg-[#C8962E]/15 rounded-full blur-2xl animate-pulse"></div>
+            {/* Logo Stage Container with dual rotating astronomical design rings */}
+            <div className="relative w-64 h-64 mb-10 flex items-center justify-center">
+              
+              {/* Complex Orbital Graphics */}
+              {/* Outer Counter-Rotating Segmented Ring */}
               <motion.div
-                initial={{ scale: 0.8, rotate: -5 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: "spring", stiffness: 100, damping: 15 }}
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 42, ease: "linear" }}
+                className="absolute inset-0 rounded-full border border-dashed border-[#C8962E]/10"
+              />
+              {/* Inner Fast Drifting Compass Segment */}
+              <motion.div
+                animate={{ rotate: -360 }}
+                transition={{ repeat: Infinity, duration: 24, ease: "linear" }}
+                className="absolute inset-4 rounded-full border border-dashed border-emerald-500/15"
+              />
+
+              {/* Glowing anchor dots moving on orbital rings */}
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 18, ease: "linear" }}
+                className="absolute inset-2 flex items-start justify-center"
               >
-                <EthioLearnLogo size={144} showCardBackground={true} />
+                <div className="w-1.5 h-1.5 rounded-full bg-[#C8962E] shadow-[0_0_10px_2px_#C8962E]" />
+              </motion.div>
+              <motion.div
+                animate={{ rotate: -360 }}
+                transition={{ repeat: Infinity, duration: 32, ease: "linear" }}
+                className="absolute inset-6 flex items-end justify-center"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_2px_#10B981]" />
+              </motion.div>
+              
+              {/* Holographic central aura */}
+              <motion.div 
+                animate={{
+                  scale: [0.92, 1.08, 0.92],
+                  opacity: [0.15, 0.3, 0.15]
+                }}
+                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute inset-10 rounded-full bg-gradient-to-br from-[#C8962E] via-red-600 to-emerald-500 blur-2xl opacity-20"
+              />
+
+              {/* Interactive Hover-Reactive Logo Frame */}
+              <motion.div
+                whileHover={{ 
+                  scale: 1.08, 
+                  rotate: [0, -3, 3, 0],
+                  transition: { duration: 0.6 }
+                }}
+                initial={{ scale: 0.85, rotate: -3 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 120, damping: 14 }}
+                className="relative z-10 p-4 rounded-3xl bg-black/40 border border-white/5 backdrop-blur-md shadow-2xl"
+              >
+                <EthioLearnLogo size={132} showCardBackground={false} />
               </motion.div>
             </div>
 
-            <motion.h1 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="font-serif text-4xl md:text-5xl font-bold tracking-tight text-[#C8962E] mb-2"
-            >
-              ኢትዮ ለርን ፕሮ
-            </motion.h1>
-            
-            <motion.h2
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="text-2xl md:text-3xl font-serif font-semibold text-[#F0EDE8] tracking-wide mb-3"
-            >
-              EthioLearn Pro
-            </motion.h2>
+            {/* Cinematic Staggered Titles */}
+            <div className="space-y-4 mb-10">
+              <motion.h1 
+                initial={{ opacity: 0, y: 20, letterSpacing: "0.15em" }}
+                animate={{ opacity: 1, y: 0, letterSpacing: "0.05em" }}
+                transition={{ duration: 0.7, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                className="font-serif text-5xl md:text-6xl font-black text-[#C8962E]"
+                style={{ textShadow: "0 0 20px rgba(200, 150, 46, 0.22)" }}
+              >
+                ኢትዮ ለርን ፕሮ
+              </motion.h1>
+              
+              <motion.h2
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                className="text-2xl md:text-3xl font-serif font-semibold text-[#F0EDE8] tracking-widest uppercase"
+              >
+                EthioLearn Pro
+              </motion.h2>
 
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.7 }}
-              className="text-lg font-medium text-[#1A7A3C] tracking-widest mb-1 uppercase"
-            >
-              ተማር። አድግ። ብልጽግና
-            </motion.p>
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.9 }}
-              className="text-[#8A8480] text-sm tracking-wider mb-10"
-            >
-              Learn. Grow. Prosper. • Secondary & University Hub
-            </motion.p>
+              <div className="flex items-center justify-center gap-3 w-40 mx-auto">
+                <div className="h-[1px] bg-gradient-to-r from-transparent to-[#C8962E]/40 flex-1" />
+                <motion.div 
+                  animate={{ scale: [1, 1.4, 1] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="w-1.5 h-1.5 rounded-full bg-[#C8962E]" 
+                />
+                <div className="h-[1px] bg-gradient-to-l from-transparent to-emerald-500/40 flex-1" />
+              </div>
 
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                playClickChime();
-                setStep('form');
-              }}
-              className="px-8 py-3.5 bg-gradient-to-r from-[#C8962E] to-[#1A7A3C] text-[#0D0D0D] font-bold rounded-lg cursor-pointer tracking-wider flex items-center gap-3 shadow-lg shadow-[#C8962E]/10 border border-[#C8962E]/40"
+              <div className="space-y-1">
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.95 }}
+                  transition={{ duration: 0.8, delay: 0.55 }}
+                  className="text-sm font-semibold text-emerald-400 tracking-[0.25em] uppercase"
+                >
+                  ተማር • አድግ • ብልጽግና
+                </motion.p>
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.6 }}
+                  transition={{ duration: 0.8, delay: 0.7 }}
+                  className="text-[#8A8480] text-xs font-mono tracking-widest uppercase flex items-center justify-center gap-1"
+                >
+                  Learn. Grow. Prosper. <span className="text-[#C8962E]">•</span> Secondary & Uni Hub
+                </motion.p>
+              </div>
+            </div>
+
+            {/* Ultra-Premium Glow Sweep Shimmer Action Button */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.85, ease: [0.16, 1, 0.3, 1] }}
+              className="relative group cursor-pointer"
             >
-              Get Started <ArrowRight className="w-5 h-5" />
-            </motion.button>
+              {/* Outer Pulsing Glow Border effect */}
+              <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-[#C8962E] via-amber-600 to-emerald-600 opacity-60 blur-md group-hover:opacity-100 group-hover:blur-lg transition-all duration-300 animate-pulse" />
+              
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  playClickChime();
+                  setStep('form');
+                }}
+                className="relative px-12 py-4 bg-black border border-zinc-700/60 text-zinc-100 font-bold rounded-xl cursor-pointer tracking-[0.12em] flex items-center gap-3 overflow-hidden shadow-2xl transition-colors duration-300 group-hover:border-[#C8962E]/70 group-hover:text-white uppercase text-xs"
+              >
+                {/* Laser Sweep Shimmer Effect */}
+                <div className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden rounded-xl">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#C8962E]/20 to-transparent w-full h-full -translate-x-full shimmer-sweep-animation" />
+                </div>
+                
+                <span>Get Started</span>
+                <ArrowRight className="w-4 h-4 text-[#C8962E] group-hover:translate-x-1 transition-transform" />
+              </motion.button>
+            </motion.div>
           </motion.div>
         ) : (
           <motion.div
