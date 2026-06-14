@@ -6,12 +6,59 @@ interface AudioTrack {
   id: string;
   title: string;
   composer: string;
-  notes: { f: number; d: number }[]; // Frequency list & duration scale
+  notes: { f: number; d: number; chord?: number[] }[]; // Frequency list & duration scale with optional chord parts
   desc: string;
   scaleType: string;
+  violinSwells?: boolean;
 }
 
 const PRESET_TRACKS: AudioTrack[] = [
+  {
+    id: 'cinematic_focus',
+    title: '1-Hour Cinematic Focus',
+    composer: 'EthioLearn Premium SoundSpace',
+    desc: 'Cinematic, vocals-free Loop featuring romantic acoustic piano, Slow soaring strings / violin swells, gentle rain, distant thunder, and flowing mountain water.',
+    scaleType: 'F Major Suspended 9th',
+    violinSwells: true,
+    notes: [
+      { f: 261.63, d: 1.2, chord: [174.61, 261.63, 329.63, 392.00] }, // F Maj 9 (Acoustic Piano Chord)
+      { f: 349.23, d: 0.8 }, { f: 440.00, d: 0.8 }, 
+      { f: 523.25, d: 1.6, chord: [174.61, 349.23, 440.00, 523.25] },
+      
+      { f: 261.63, d: 1.2, chord: [130.81, 196.00, 261.63, 329.63] }, // C Maj (Warm Chord)
+      { f: 392.00, d: 0.8 }, { f: 523.25, d: 0.8 }, 
+      { f: 659.25, d: 1.6, chord: [130.81, 261.63, 392.00, 659.25] },
+
+      { f: 220.00, d: 1.2, chord: [110.00, 164.81, 220.00, 261.63] }, // A Min 9 (Acoustic Piano Chord)
+      { f: 329.63, d: 0.8 }, { f: 440.00, d: 0.8 }, 
+      { f: 523.25, d: 1.6, chord: [110.00, 220.00, 329.63, 523.25] },
+
+      { f: 196.00, d: 1.2, chord: [98.00, 146.83, 196.00, 246.94] }, // G Maj (Warm Chord)
+      { f: 293.66, d: 0.8 }, { f: 392.00, d: 0.8 }, 
+      { f: 493.88, d: 1.6, chord: [98.00, 196.00, 293.66, 493.88] }
+    ]
+  },
+  {
+    id: 'romantic_rain',
+    title: 'Romantic Piano & Strings',
+    composer: 'Yiruma / Chopin Inspired (Rain Duo)',
+    desc: 'Lush, highly emotive, romantic neo-classical piano and slow sweeping cello/violin duo, layered with autumn rain and warm winds.',
+    scaleType: 'D Major / B Minor',
+    violinSwells: true,
+    notes: [
+      { f: 246.94, d: 1.4, chord: [123.47, 246.94, 293.66, 369.99] }, // B Minor Triad
+      { f: 293.66, d: 0.7 }, { f: 369.99, d: 0.7 }, { f: 493.88, d: 1.4 },
+      
+      { f: 293.66, d: 1.4, chord: [146.83, 220.00, 293.66, 369.99] }, // D Major Triad
+      { f: 369.99, d: 0.7 }, { f: 440.00, d: 0.7 }, { f: 587.33, d: 1.4 },
+
+      { f: 220.00, d: 1.4, chord: [110.00, 164.81, 220.00, 277.18] }, // A Major Triad
+      { f: 277.18, d: 0.7 }, { f: 329.63, d: 0.7 }, { f: 440.00, d: 1.4 },
+
+      { f: 196.00, d: 1.4, chord: [98.00, 146.83, 196.00, 246.94] }, // G Major Triad
+      { f: 246.94, d: 0.7 }, { f: 293.66, d: 0.7 }, { f: 392.00, d: 1.4 }
+    ]
+  },
   {
     id: 'bach',
     title: 'Prelude in C Major',
@@ -75,10 +122,10 @@ export default function MindRelax() {
   const [tempo, setTempo] = useState<number>(100); // Percentage duration speed scale
 
   // Sublayer sliders
-  const [ambientVolume, setAmbientVolume] = useState<number>(0.2); // 528hz Fork
-  const [rainVolume, setRainVolume] = useState<number>(0.15);
-  const [fireVolume, setFireVolume] = useState<number>(0.1);
-  const [windVolume, setWindVolume] = useState<number>(0.05);
+  const [ambientVolume, setAmbientVolume] = useState<number>(0.25); // 528hz Fork strings setup
+  const [rainVolume, setRainVolume] = useState<number>(0.35); // Soothing rain
+  const [fireVolume, setFireVolume] = useState<number>(0.3); // River flows
+  const [windVolume, setWindVolume] = useState<number>(0.18); // Gentle highlands wind
 
   const [activeNoteLabel, setActiveNoteLabel] = useState<string>('Ready to Synthesize');
   const [activeFrequency, setActiveFrequency] = useState<number>(0);
@@ -91,6 +138,12 @@ export default function MindRelax() {
   const mainGainRef = useRef<GainNode | null>(null);
   const schedulerTimerId = useRef<number | null>(null);
   const currentNoteIndex = useRef<number>(0);
+  const selectedTrackIdRef = useRef<string>(selectedTrack.id);
+  const thunderIntervalId = useRef<number | null>(null);
+
+  useEffect(() => {
+    selectedTrackIdRef.current = selectedTrack.id;
+  }, [selectedTrack.id]);
 
   // Noise oscillators for effects
   const generatorNodesRef = useRef<{
@@ -302,20 +355,41 @@ export default function MindRelax() {
       (nodes as any).rainSource = rainNode;
       nodes.rainGain = rainGain;
 
-      // 3. Cozy Library Fire Crackle. We synthesize fireplace crackles at ultra low volume to avoid disturbance static feel
+      // 3. Cozy Library Fire Crackle / Flowing water. We synthesize fireplace crackles at ultra low volume or flowing water.
+      let lfoTime = 0;
       const synthFire = ctx.createScriptProcessor(4096, 0, 1);
+      const isCinematicFocus = selectedTrackIdRef.current === 'cinematic_focus';
+
       synthFire.onaudioprocess = (e) => {
         const out = e.outputBuffer.getChannelData(0);
         for (let i = 0; i < out.length; i++) {
           const white = Math.random() * 2 - 1;
-          // Very warm low rumble
-          let val = white * 0.003;
           
-          // Tiny organic wood snaps with soft transient curves rather than step clickers
-          if (Math.random() > 0.9997) {
-            val += (Math.random() > 0.5 ? 0.05 : -0.05);
+          if (isCinematicFocus) {
+            // 🌊 Flowing Water: Modulate noise slowly to sound like flowing ripples & bubbles
+            lfoTime += 1 / ctx.sampleRate;
+            // Slow wave modulation (0.15Hz slow LFO)
+            const waveMod = Math.sin(2 * Math.PI * 0.15 * lfoTime) * 0.3 + 0.7;
+            // Faster ripples (4Hz LFO)
+            const bubbleMod = Math.sin(2 * Math.PI * 4 * lfoTime) * 0.15 + 0.85;
+            
+            // Continuous flowing river sound
+            let val = white * 0.004 * waveMod * bubbleMod;
+            
+            // Tiny sweet aquatic bubbles resonances instead of fireplace wood clicks
+            if (Math.random() > 0.9992) {
+              const bubbleFreq = 200 + Math.random() * 200;
+              val += Math.sin(2 * Math.PI * bubbleFreq * lfoTime) * 0.02 * Math.exp(-100 * (i / out.length));
+            }
+            out[i] = val;
+          } else {
+            // 🔥 Fireplace: Very warm low rumble + wood cracks
+            let val = white * 0.003;
+            if (Math.random() > 0.9997) {
+              val += (Math.random() > 0.5 ? 0.05 : -0.05);
+            }
+            out[i] = val;
           }
-          out[i] = val;
         }
       };
       
@@ -324,7 +398,7 @@ export default function MindRelax() {
       fireFilter.frequency.setValueAtTime(250, ctx.currentTime); // filter out sharp cracking hiss
 
       const fireGain = ctx.createGain();
-      fireGain.gain.setValueAtTime(fireVolume * 0.12, ctx.currentTime);
+      fireGain.gain.setValueAtTime(fireVolume * (isCinematicFocus ? 0.35 : 0.12), ctx.currentTime);
       
       synthFire.connect(fireFilter);
       fireFilter.connect(fireGain);
@@ -372,67 +446,197 @@ export default function MindRelax() {
     }
   };
 
-  const playSynthesizerNote = (freq: number, duration: number) => {
+  const playSynthesizerNote = (freqOrFreqs: number | number[], duration: number, isViolinSwell = false) => {
     try {
       const ctx = getAudioContext();
       const nodes = generatorNodesRef.current;
       if (!ctx || !mainGainRef.current) return;
 
       const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const subOsc = ctx.createOscillator();
-      const noteGain = ctx.createGain();
+      const frequencies = Array.isArray(freqOrFreqs) ? freqOrFreqs : [freqOrFreqs];
 
-      // Deep, extremely warm physical-modeling simulator filters
-      const lowpassFilter = ctx.createBiquadFilter();
-      lowpassFilter.type = 'lowpass';
-      // Start slightly warm and sweep down to a very dark, soothing round tone
-      lowpassFilter.frequency.setValueAtTime(500, now);
-      lowpassFilter.frequency.exponentialRampToValueAtTime(110, now + duration * 1.2);
+      frequencies.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const subOsc = ctx.createOscillator();
+        const noteGain = ctx.createGain();
 
-      // Primary oscillator: Soft warm Sine wave instead of the sharp triangle
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now);
+        // Deep, extremely warm physical-modeling simulator filters
+        const lowpassFilter = ctx.createBiquadFilter();
+        lowpassFilter.type = 'lowpass';
+        // Start warm and sweep down to a very dark, soothing round tone
+        lowpassFilter.frequency.setValueAtTime(450, now);
+        lowpassFilter.frequency.exponentialRampToValueAtTime(110, now + duration * 1.5);
 
-      // Sub-oscillator: Soft sine octave beneath to ground the note
-      subOsc.type = 'sine';
-      subOsc.frequency.setValueAtTime(freq / 2, now);
+        // Primary oscillator: Soft warm Sine wave
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
 
-      // Pristine volume envelope to mimic real bells/pianos - no transient start clicking
-      noteGain.gain.setValueAtTime(0, now);
-      noteGain.gain.linearRampToValueAtTime(0.08, now + 0.25); // slow, expressive bell hammer attack
-      noteGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 1.5);
+        // Sub-oscillator: Soft sine octave beneath to ground the note
+        subOsc.type = 'sine';
+        subOsc.frequency.setValueAtTime(freq / 2, now);
 
-      // Hook up instruments
-      osc.connect(lowpassFilter);
-      subOsc.connect(lowpassFilter);
-      lowpassFilter.connect(noteGain);
+        // Pristine volume envelope
+        noteGain.gain.setValueAtTime(0, now);
+        // reduce volume slightly for chords to avoid clipping
+        const targetVol = frequencies.length > 1 ? (0.05 / Math.sqrt(frequencies.length)) : 0.08;
+        noteGain.gain.linearRampToValueAtTime(targetVol, now + 0.20 + (idx * 0.02)); // slightly staggered arpeggio effect!
+        noteGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 1.6);
 
-      // Dry mix output
-      noteGain.connect(mainGainRef.current);
+        // Hook up instruments
+        osc.connect(lowpassFilter);
+        subOsc.connect(lowpassFilter);
+        lowpassFilter.connect(noteGain);
 
-      // Wet Delay mix output: Send a beautiful portion directly into the spacious Echo Feedback loops
-      if ((nodes as any).delayNode) {
-        const delaySendNode = ctx.createGain();
-        delaySendNode.gain.setValueAtTime(0.38, now); // soft spatial bleed
-        noteGain.connect(delaySendNode);
-        delaySendNode.connect((nodes as any).delayNode);
+        // Dry mix output
+        noteGain.connect(mainGainRef.current);
+
+        // Wet Delay mix output: Send a beautiful portion directly into the spacious Echo Feedback loops
+        if ((nodes as any).delayNode) {
+          const delaySendNode = ctx.createGain();
+          delaySendNode.gain.setValueAtTime(0.35, now); // soft spatial bleed
+          noteGain.connect(delaySendNode);
+          delaySendNode.connect((nodes as any).delayNode);
+        }
+
+        osc.start(now);
+        subOsc.start(now);
+
+        osc.stop(now + duration * 2.2);
+        subOsc.stop(now + duration * 2.2);
+      });
+
+      // Violin/String Sweeps: Warm string pad that swells very slowly underneath the piano chord
+      if (isViolinSwell && frequencies.length > 0) {
+        // play the lowest frequency as string pad foundation
+        const stringFreq = frequencies[0];
+        
+        const stringOsc = ctx.createOscillator();
+        const stringFilter = ctx.createBiquadFilter();
+        const stringGain = ctx.createGain();
+
+        // Triangle wave for soft organic violin/strings-like harmonics
+        stringOsc.type = 'triangle';
+        stringOsc.frequency.setValueAtTime(stringFreq, now);
+
+        // Sweet soft-sweep resonant lowpass filter
+        stringFilter.type = 'lowpass';
+        stringFilter.frequency.setValueAtTime(80, now);
+        stringFilter.frequency.exponentialRampToValueAtTime(320, now + duration * 0.7);
+        stringFilter.frequency.exponentialRampToValueAtTime(90, now + duration * 1.6);
+        stringFilter.Q.setValueAtTime(1.5, now);
+
+        // Slow swell violin-style attack envelope
+        stringGain.gain.setValueAtTime(0.0, now);
+        stringGain.gain.linearRampToValueAtTime(0.06, now + duration * 0.6); // slow swell peak
+        stringGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 1.9);
+
+        stringOsc.connect(stringFilter);
+        stringFilter.connect(stringGain);
+        stringGain.connect(mainGainRef.current);
+
+        // Add soft delay bleed to make strings super wide / spacious
+        if ((nodes as any).delayNode) {
+          const stringDelaySend = ctx.createGain();
+          stringDelaySend.gain.setValueAtTime(0.2, now);
+          stringGain.connect(stringDelaySend);
+          stringDelaySend.connect((nodes as any).delayNode);
+        }
+
+        stringOsc.start(now);
+        stringOsc.stop(now + duration * 2.4);
       }
 
-      osc.start(now);
-      subOsc.start(now);
-
-      osc.stop(now + duration * 2.0);
-      subOsc.stop(now + duration * 2.0);
-
-      // Label frequency output
-      setActiveFrequency(Math.round(freq * 10) / 10);
-      const noteName = mapFrequencyToClassicalNote(freq);
-      setActiveNoteLabel(noteName);
-      setSynthesizedLinesPlayed(prev => prev + 1);
+      // Label frequency output of the first note
+      const primaryFreq = frequencies[0];
+      setActiveFrequency(Math.round(primaryFreq * 10) / 10);
+      const noteName = mapFrequencyToClassicalNote(primaryFreq);
+      setActiveNoteLabel(noteName + (frequencies.length > 1 ? ' + Chords' : ''));
+      setSynthesizedLinesPlayed(prev => prev + frequencies.length);
 
     } catch (e) {
-      console.warn("Synthesizer note block:", e);
+      console.warn("Synthesizer note block error:", e);
+    }
+  };
+
+  const triggerDistantThunder = () => {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx || !mainGainRef.current || !isPlaying) return;
+      const now = ctx.currentTime;
+      
+      // Let's create a custom low-frequency noise buffer source
+      const bufferSize = ctx.sampleRate * 6; // 6 seconds rumble
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      
+      // Generate rolling brown-like noise with random intensity waves
+      let lastOut = 0.0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        // Brown noise filter integration
+        data[i] = (lastOut + (0.02 * white)) / 1.02;
+        lastOut = data[i];
+        
+        // Add low frequency rolling waves to simulate thunder claps & rumbling
+        const progress = i / bufferSize;
+        const rumbleWave = Math.sin(progress * Math.PI * 15 * (1 + progress)) * 0.3 + 0.7;
+        data[i] *= rumbleWave * (1.0 - progress); // Decay over 6 seconds
+      }
+      
+      const thunderSource = ctx.createBufferSource();
+      thunderSource.buffer = buffer;
+      
+      // Filter thunder down deeply to sound "distant" (lowpass at 90Hz)
+      const thunderFilter = ctx.createBiquadFilter();
+      thunderFilter.type = 'lowpass';
+      thunderFilter.frequency.setValueAtTime(90, now);
+      // Sweep cutoff frequency lower as the rumble fades away (simulating air absorption)
+      thunderFilter.frequency.exponentialRampToValueAtTime(35, now + 5.5);
+      
+      const thunderGain = ctx.createGain();
+      // Low volume mix to ensure it's cozy and in the distance
+      thunderGain.gain.setValueAtTime(0.0, now);
+      thunderGain.gain.linearRampToValueAtTime(0.12, now + 0.5); // soft roll-in swell
+      thunderGain.gain.exponentialRampToValueAtTime(0.001, now + 5.8);
+      
+      thunderSource.connect(thunderFilter);
+      thunderFilter.connect(thunderGain);
+      thunderGain.connect(mainGainRef.current);
+      
+      thunderSource.start();
+      
+      // Display visual notice in active note label briefly
+      setActiveNoteLabel('⚡ Distant Cosmic Thunder...');
+      setTimeout(() => {
+        if (isPlaying && selectedTrackIdRef.current === 'cinematic_focus') {
+          setActiveNoteLabel('1-Hour Cinematic Focus');
+        }
+      }, 5000);
+      
+    } catch (e) {
+      console.warn("Could not trigger thunder rumble:", e);
+    }
+  };
+
+  const startThunderScheduler = () => {
+    if (thunderIntervalId.current) {
+      clearInterval(thunderIntervalId.current);
+      thunderIntervalId.current = null;
+    }
+    if (selectedTrackIdRef.current === 'cinematic_focus' || selectedTrackIdRef.current === 'romantic_rain') {
+      // First rumble in 4 seconds
+      setTimeout(() => {
+        if (isPlaying && (selectedTrackIdRef.current === 'cinematic_focus' || selectedTrackIdRef.current === 'romantic_rain')) {
+          triggerDistantThunder();
+        }
+      }, 4000);
+
+      // Periodic rumbles every 32 seconds
+      thunderIntervalId.current = window.setInterval(() => {
+        if (isPlaying && (selectedTrackIdRef.current === 'cinematic_focus' || selectedTrackIdRef.current === 'romantic_rain')) {
+          triggerDistantThunder();
+        }
+      }, 32000);
     }
   };
 
@@ -449,7 +653,10 @@ export default function MindRelax() {
         // Adjust note speed depending on user tempo choice
         const durationScale = (100 / tempo);
         const adjustedDuration = note.d * durationScale;
-        playSynthesizerNote(note.f, adjustedDuration * 1.5);
+
+        // Play chord or single note
+        const noteValue = note.chord && note.chord.length > 0 ? note.chord : note.f;
+        playSynthesizerNote(noteValue, adjustedDuration * 1.5, !!track.violinSwells);
 
         // Schedule next chord trigger
         schedulerTimerId.current = window.setTimeout(() => {
@@ -472,6 +679,10 @@ export default function MindRelax() {
         clearTimeout(schedulerTimerId.current);
         schedulerTimerId.current = null;
       }
+      if (thunderIntervalId.current) {
+        clearInterval(thunderIntervalId.current);
+        thunderIntervalId.current = null;
+      }
       stopAllHardwareNodes();
     } else {
       // Play
@@ -483,6 +694,7 @@ export default function MindRelax() {
       initSynthesizers();
       setTimeout(() => {
         startSequenceScheduler();
+        startThunderScheduler();
       }, 100);
     }
   };
@@ -494,19 +706,48 @@ export default function MindRelax() {
     setActiveNoteLabel('Loading Program Settings...');
     setActiveFrequency(0);
 
+    // If it is our Cinematic Focus or Romantic Piano track, automatically adjust slider mixes
+    if (track.id === 'cinematic_focus' || track.id === 'romantic_rain') {
+      setRainVolume(0.35);    // Sweet rain background
+      setAmbientVolume(0.30); // Gentle warm strings / violin base
+      setFireVolume(0.35);    // Flowing water
+      setWindVolume(0.18);    // Subtle wind sweeps
+    }
+
     if (isPlaying) {
       if (schedulerTimerId.current) {
         clearTimeout(schedulerTimerId.current);
         schedulerTimerId.current = null;
       }
+      if (thunderIntervalId.current) {
+        clearInterval(thunderIntervalId.current);
+        thunderIntervalId.current = null;
+      }
       setTimeout(() => {
         startSequenceScheduler();
+        // start thunder scheduler for new tracks
+        if (track.id === 'cinematic_focus' || track.id === 'romantic_rain') {
+          setTimeout(() => {
+            if (isPlaying && (selectedTrackIdRef.current === 'cinematic_focus' || selectedTrackIdRef.current === 'romantic_rain')) {
+              triggerDistantThunder();
+            }
+          }, 4000);
+          thunderIntervalId.current = window.setInterval(() => {
+            if (isPlaying && (selectedTrackIdRef.current === 'cinematic_focus' || selectedTrackIdRef.current === 'romantic_rain')) {
+              triggerDistantThunder();
+            }
+          }, 32000);
+        }
       }, 150);
     }
   };
 
   const stopAllHardwareNodes = () => {
     const nodes = generatorNodesRef.current;
+    if (thunderIntervalId.current) {
+      clearInterval(thunderIntervalId.current);
+      thunderIntervalId.current = null;
+    }
     try {
       if (nodes.fork) { nodes.fork.stop(); }
       if ((nodes as any).rainSource) { (nodes as any).rainSource.stop(); }
@@ -521,6 +762,9 @@ export default function MindRelax() {
     return () => {
       if (schedulerTimerId.current) {
         clearTimeout(schedulerTimerId.current);
+      }
+      if (thunderIntervalId.current) {
+        clearInterval(thunderIntervalId.current);
       }
       stopAllHardwareNodes();
     };
@@ -778,10 +1022,13 @@ export default function MindRelax() {
                 />
               </div>
 
-              {/* Fire wood clicks slider */}
+              {/* Fire wood clicks slider / Flowing Water */}
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-[10px] text-title-dominant">
-                  <span className="font-bold flex items-center gap-1 leading-none uppercase"><Volume2 className="w-3.5 h-3.5 text-orange-500" /> Library wood fire snaps</span>
+                  <span className="font-bold flex items-center gap-1 leading-none uppercase">
+                    <Volume2 className="w-3.5 h-3.5 text-orange-500" /> 
+                    {['cinematic_focus', 'romantic_rain'].includes(selectedTrack.id) ? '💧 Mountain River & Brooks' : '🔥 Library wood fire snaps'}
+                  </span>
                   <span className="text-subtext-explain font-black">{Math.round(fireVolume * 100)}%</span>
                 </div>
                 <input
