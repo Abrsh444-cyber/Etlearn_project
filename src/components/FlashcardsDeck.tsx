@@ -297,14 +297,14 @@ export default function FlashcardsDeck({ apiKey, decksState, onSaveDecksState }:
               <Layers className="w-5 h-5 text-[#C8962E]" />
               <h3 className="font-serif font-bold text-sm text-[#F0EDE8]">Select Study Deck</h3>
             </div>
-            {/* Added elegant + button for adding manually generated cards */}
+            {/* Added elegant + button for generating AI flashcards */}
             <button
               onClick={() => {
                 setShowCreateCardModal(true);
                 playClickChime();
               }}
               className="w-7 h-7 rounded-lg bg-[#C8962E]/10 border border-[#C8962E]/20 text-[#C8962E] hover:bg-[#C8962E]/25 hover:border-[#C8962E] transition-all text-base font-bold flex items-center justify-center cursor-pointer shadow-sm hover:scale-105 active:scale-95"
-              title="Add Custom Card (+)"
+              title="Generate Flashcards with AI (+)"
             >
               +
             </button>
@@ -340,7 +340,7 @@ export default function FlashcardsDeck({ apiKey, decksState, onSaveDecksState }:
               );
             })}
 
-            {/* Quick manual custom + cards button inside selection sidebar */}
+            {/* Quick AI generation button inside selection sidebar */}
             <button
               onClick={() => {
                 setShowCreateCardModal(true);
@@ -348,8 +348,8 @@ export default function FlashcardsDeck({ apiKey, decksState, onSaveDecksState }:
               }}
               className="w-full text-center p-3 rounded-lg border border-dashed border-[#C8962E]/30 hover:border-[#C8962E] text-xs cursor-pointer flex justify-center items-center gap-2 transition-all bg-[#C8962E]/5 hover:bg-[#C8962E]/10 font-bold text-[#C8962E]"
             >
-              <span className="text-sm font-black">+</span>
-              <span>Create Custom Card</span>
+              <Sparkles className="w-3.5 h-3.5 text-[#C8962E]" />
+              <span>AI Flashcards Generator</span>
             </button>
           </div>
 
@@ -643,15 +643,15 @@ export default function FlashcardsDeck({ apiKey, decksState, onSaveDecksState }:
               transition={{ type: "spring", duration: 0.4 }}
               className="relative w-full max-w-lg rounded-2xl border border-blue-900/40 bg-[#0B1229] p-6 text-slate-100 shadow-2xl z-10 max-h-[90vh] flex flex-col justify-between"
             >
-              <form onSubmit={handleCreateCustomCard} className="space-y-4">
+              <form onSubmit={handleGenerateCardsAI} className="space-y-4">
                 {/* Header */}
                 <div className="flex justify-between items-center pb-3 border-b border-zinc-800/40">
                   <div className="flex items-center gap-2">
                     <span className="p-1.5 bg-[#C8962E]/10 border border-[#C8962E]/30 text-[#C8962E] rounded-lg text-lg font-bold">
-                      +
+                      <Sparkles className="w-5 h-5" />
                     </span>
                     <div>
-                      <h3 className="font-serif text-sm font-bold text-white">Create New Custom Card</h3>
+                      <h3 className="font-serif text-sm font-bold text-white">AI Flashcard Generator</h3>
                       <p className="text-[10px] text-[#C8962E] tracking-tight uppercase">Saved strictly to Free Space Deck</p>
                     </div>
                   </div>
@@ -664,42 +664,30 @@ export default function FlashcardsDeck({ apiKey, decksState, onSaveDecksState }:
                   </button>
                 </div>
 
-                {/* Form fields */}
-                <div className="space-y-3.5 text-xs">
-                  <div className="space-y-1">
-                    <label className="block font-medium text-zinc-300">Front Side: Question *</label>
-                    <textarea
+                {/* Form description and fields */}
+                <div className="space-y-4 text-xs">
+                  <p className="text-zinc-400 leading-relaxed text-[11px]">
+                    Enter any academic concept, chapter, or topic. The AI will synthesize 10 premium flashcard card pairs automatically.
+                  </p>
+
+                  <div className="space-y-1.5">
+                    <label className="block font-medium text-zinc-300">Target Topic or Chapter Theme</label>
+                    <input
+                      type="text"
                       required
-                      rows={2}
-                      placeholder="e.g. What is the complexity of binary search?"
-                      value={newQuestion}
-                      onChange={(e) => setNewQuestion(e.target.value)}
-                      className="w-full bg-[#0D0D0D] border border-[#2A2A2A] rounded-lg p-2.5 outline-none text-[#F0EDE8] focus:border-[#C8962E] resize-none"
+                      placeholder="e.g. Krebs cycle metabolic steps / Federalism structures..."
+                      value={aiTopic}
+                      onChange={(e) => setAiTopic(e.target.value)}
+                      className="w-full bg-[#0D0D0D] border border-zinc-800 focus:border-[#C8962E] rounded-lg p-3 outline-none text-zinc-100 transition-all text-xs"
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="block font-medium text-zinc-300">Back Side: Correct Answer *</label>
-                    <textarea
-                      required
-                      rows={2}
-                      placeholder="e.g. O(log n)"
-                      value={newAnswer}
-                      onChange={(e) => setNewAnswer(e.target.value)}
-                      className="w-full bg-[#0D0D0D] border border-[#2A2A2A] rounded-lg p-2.5 outline-none text-[#F0EDE8] focus:border-[#C8962E] resize-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block font-medium text-zinc-300">Detailed Explanation (Optional)</label>
-                    <textarea
-                      rows={2}
-                      placeholder="e.g. Because the search space is cut in half on each step iteration."
-                      value={newExplanation}
-                      onChange={(e) => setNewExplanation(e.target.value)}
-                      className="w-full bg-[#0D0D0D] border border-[#2A2A2A] rounded-lg p-2.5 outline-none text-[#F0EDE8] focus:border-[#C8962E] resize-none"
-                    />
-                  </div>
+                  {aiError && (
+                    <p className="text-xs text-red-400 bg-red-950/20 border border-red-500/20 p-2.5 rounded-lg">{aiError}</p>
+                  )}
+                  {aiSuccess && (
+                    <p className="text-xs text-emerald-400 bg-emerald-950/20 border border-emerald-500/20 p-2.5 rounded-lg">{aiSuccess}</p>
+                  )}
                 </div>
 
                 {/* Action buttons */}
@@ -713,9 +701,10 @@ export default function FlashcardsDeck({ apiKey, decksState, onSaveDecksState }:
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-gradient-to-r from-[#C8962E] to-[#1A7A3C] text-black hover:opacity-90 font-black rounded-lg text-[11px] cursor-pointer transition-all uppercase tracking-wider"
+                    disabled={isGenerating || !aiTopic.trim()}
+                    className="px-4 py-2 bg-gradient-to-r from-[#C8962E] to-[#1A7A3C] text-black hover:opacity-90 font-black rounded-lg text-[11px] cursor-pointer transition-all uppercase tracking-wider disabled:opacity-30 flex items-center gap-1.5"
                   >
-                    Generate Card
+                    {isGenerating ? 'Synthesizing...' : 'Generate 10 Cards'}
                   </button>
                 </div>
               </form>

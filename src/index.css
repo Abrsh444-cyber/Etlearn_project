@@ -13,6 +13,34 @@
   --color-ethio-gold: #C8962E;
   --color-ethio-green: #1A7A3C;
   --color-ethio-red: #BE1931;
+
+  --color-main-bg: var(--bg-main);
+  --color-surface-elevated: var(--bg-surface);
+  --color-divider-subtle: var(--border-subtle);
+  --color-title-dominant: var(--text-title);
+  --color-subtext-explain: var(--text-explain);
+  --color-accent-active: var(--accent-interactive);
+  --shadow-ambient-purple: var(--shadow-ambient);
+}
+
+:root {
+  --bg-main: #F5F7FB;
+  --bg-surface: #FFFFFF;
+  --border-subtle: #E2E8F0;
+  --text-title: #0B0F19;
+  --text-explain: #475569;
+  --accent-interactive: #7C3AED;
+  --shadow-ambient: 0 4px 20px rgba(124, 58, 237, 0.05);
+}
+
+.dark {
+  --bg-main: #070913;
+  --bg-surface: #0E1126;
+  --border-subtle: #1E293B;
+  --text-title: #FFFFFF;
+  --text-explain: #64748B;
+  --accent-interactive: #A855F7;
+  --shadow-ambient: 0 4px 20px rgba(168, 85, 247, 0.15);
 }
 
 /* Custom premium scrollbar - High Density style */
@@ -126,6 +154,110 @@
 
 .particle-reward-rise {
   animation: rise-and-fade 1.3s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+}
+
+/* Dynamic premium color mappings across both light and dark states */
+.premium-card, .premium-box {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-title) !important;
+  box-shadow: var(--shadow-ambient) !important;
+}
+
+/* Background properties mapping */
+.bg-main-bg, 
+.bg-\[\#070913\], 
+.bg-\[\#040816\], 
+.bg-\[\#0D0D0D\], 
+.bg-zinc-950, 
+.bg-\[\#060a1a\] {
+  background-color: var(--bg-main) !important;
+}
+
+.bg-surface-elevated, 
+.bg-\[\#0E1126\], 
+.bg-\[\#161616\], 
+.bg-\[\#0B0D1A\], 
+.bg-\[\#0A0E1D\], 
+.bg-\[\#111111\], 
+.bg-\[\#121212\], 
+.bg-\[\#111\],
+.bg-\[\#151515\] {
+  background-color: var(--bg-surface) !important;
+}
+
+/* Scrollbars mapping */
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--bg-main) !important;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--accent-interactive) !important;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-main) !important;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle) !important;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-interactive) !important;
+}
+
+/* Border lines mapping */
+.border-divider-subtle, 
+.border-\[\#1E293B\], 
+.border-\[\#2a2a2a\], 
+.border-\[\#2A2A2A\], 
+.border-zinc-800, 
+.border-zinc-900 {
+  border-color: var(--border-subtle) !important;
+}
+
+/* Title text color mappings excluding interactive icons, actions or flags */
+.text-title-dominant, 
+.text-\[\#FFFFFF\], 
+.text-\[\#F0EDE8\]:not(button *):not(a *):not(.pro-badge), 
+.text-slate-200:not(button *):not(a *), 
+.text-zinc-100:not(button *):not(a *), 
+.text-zinc-200:not(button *):not(a *) {
+  color: var(--text-title) !important;
+}
+
+/* Subtext/Explanation text color mappings */
+.text-subtext-explain, 
+.text-\[\#64748B\], 
+.text-\[\#475569\], 
+.text-zinc-400:not(button *):not(a *), 
+.text-zinc-500:not(button *):not(a *), 
+.text-slate-400:not(button *):not(a *) {
+  color: var(--text-explain) !important;
+}
+
+/* Interactive accents & Active states */
+.text-accent-interactive, 
+.text-\[\#A855F7\], 
+.text-\[\#7C3AED\] {
+  color: var(--accent-interactive) !important;
+}
+
+.bg-accent-interactive, 
+.bg-\[\#A855F7\], 
+.bg-\[\#7C3AED\] {
+  background-color: var(--accent-interactive) !important;
+}
+
+.border-accent-interactive,
+.border-\[\#A855F7\],
+.border-\[\#7C3AED\] {
+  border-color: var(--accent-interactive) !important;
+}
+
+/* Shadow drop bounds mapping */
+.premium-shadow, 
+.shadow-ambient-purple,
+.shadow-2xl,
+.shadow-xl {
+  box-shadow: var(--shadow-ambient) !important;
 }
 
 

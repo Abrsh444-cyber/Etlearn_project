@@ -12,7 +12,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // API Route for Claude proxy redirected to OpenRouter or natively served via Google Gemini
   app.post('/api/claude/chat', async (req, res) => {
@@ -51,10 +52,27 @@ async function startServer() {
         });
 
         // Convert messages format to Gemini contents schema
-        const geminiContents = messages.map((m: any) => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.content || '' }]
-        }));
+        const geminiContents = messages.map((m: any) => {
+          const parts: any[] = [];
+          if (m.content) {
+            parts.push({ text: m.content });
+          }
+          if (m.attachment && m.attachment.data && m.attachment.mimeType) {
+            parts.push({
+              inlineData: {
+                data: m.attachment.data,
+                mimeType: m.attachment.mimeType
+              }
+            });
+          }
+          if (parts.length === 0) {
+            parts.push({ text: '' });
+          }
+          return {
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts
+          };
+        });
 
         const stream = await ai.models.generateContentStream({
           model: 'gemini-3.5-flash',
@@ -89,7 +107,31 @@ async function startServer() {
           groqMessages.push({ role: 'system', content: system });
         }
         if (Array.isArray(messages)) {
-          groqMessages.push(...messages);
+          const mapped = messages.map((m: any) => {
+            if (m.attachment && m.attachment.data && m.attachment.mimeType) {
+              if (m.attachment.mimeType.startsWith('image/')) {
+                return {
+                  role: m.role,
+                  content: [
+                    { type: 'text', text: m.content || '' },
+                    {
+                      type: 'image_url',
+                      image_url: {
+                        url: `data:${m.attachment.mimeType};base64,${m.attachment.data}`
+                      }
+                    }
+                  ]
+                };
+              } else {
+                return {
+                  role: m.role,
+                  content: `${m.content || ''}\n[Attached File: ${m.attachment.name || 'document'} (${m.attachment.mimeType})]`
+                };
+              }
+            }
+            return { role: m.role, content: m.content || '' };
+          });
+          groqMessages.push(...mapped);
         }
 
         // Configure columns for Server-Sent Events (SSE) streaming helper
@@ -199,7 +241,31 @@ async function startServer() {
         openRouterMessages.push({ role: 'system', content: system });
       }
       if (Array.isArray(messages)) {
-        openRouterMessages.push(...messages);
+        const mapped = messages.map((m: any) => {
+          if (m.attachment && m.attachment.data && m.attachment.mimeType) {
+            if (m.attachment.mimeType.startsWith('image/')) {
+              return {
+                role: m.role,
+                content: [
+                  { type: 'text', text: m.content || '' },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: `data:${m.attachment.mimeType};base64,${m.attachment.data}`
+                    }
+                  }
+                ]
+              };
+            } else {
+              return {
+                role: m.role,
+                content: `${m.content || ''}\n[Attached File: ${m.attachment.name || 'document'} (${m.attachment.mimeType})]`
+              };
+            }
+          }
+          return { role: m.role, content: m.content || '' };
+        });
+        openRouterMessages.push(...mapped);
       }
 
       // Resolve a standard OpenRouter model ID matching 2026 active endpoints list

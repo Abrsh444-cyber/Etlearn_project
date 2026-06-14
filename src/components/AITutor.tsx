@@ -6,18 +6,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Bot, Send, Mic, RefreshCw, Copy, Check, MessageSquare, Volume2, Sparkles, AlertCircle, HelpCircle, FileText
+  Bot, Send, Mic, RefreshCw, Copy, Check, MessageSquare, Volume2, Sparkles, AlertCircle, HelpCircle, FileText,
+  Paperclip, File, X
 } from 'lucide-react';
-import { ChatMessage, submitClaudeChat, generateQuizAI } from '../utils/ai';
+import { ChatMessage, submitClaudeChat, generateQuizAI, generateFlashcardsFromContextAI } from '../utils/ai';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import AITutorLogo from './AITutorLogo';
+import { Flashcard } from '../types';
 
 interface AITutorProps {
   apiKey: string;
   enrolledSubjects: string[];
+  decksState?: { [deckId: string]: Flashcard[] };
+  onSaveDecksState?: (deckId: string, cards: Flashcard[]) => void;
 }
 
-export default function AITutor({ apiKey, enrolledSubjects }: AITutorProps) {
+export default function AITutor({ apiKey, enrolledSubjects, decksState, onSaveDecksState }: AITutorProps) {
   const [selectedSubject, setSelectedSubject] = useState(enrolledSubjects[0] || "Emerging Technologies");
   const [language, setLanguage] = useState<'en' | 'am'>('en');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -27,9 +31,139 @@ export default function AITutor({ apiKey, enrolledSubjects }: AITutorProps) {
   const [listening, setListening] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
 
+  // File Upload State & Ref
+  const [attachedFile, setAttachedFile] = useState<{
+    name: string;
+    mimeType: string;
+    data: string; // raw base64 string
+    previewUrl?: string;
+  } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processSelectedFile(file);
+    }
+  };
+
+  const processSelectedFile = (file: File) => {
+    const MAX_SIZE = 4 * 1024 * 1024; // 4MB
+    if (file.size > MAX_SIZE) {
+      setErrorBanner("Your file is too large (Maximum size is 4MB). Please attach a smaller file.");
+      playFailureChime();
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const commaIdx = result.indexOf(',');
+      const base64Data = commaIdx !== -1 ? result.substring(commaIdx + 1) : result;
+      
+      const fileObj = {
+        name: file.name,
+        mimeType: file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream'),
+        data: base64Data,
+        previewUrl: file.type.startsWith('image/') ? result : undefined
+      };
+      
+      setAttachedFile(fileObj);
+      setErrorBanner(null);
+      playSuccessChime();
+    };
+    reader.onerror = () => {
+      setErrorBanner("Could not read the file. Please try another one.");
+      playFailureChime();
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processSelectedFile(file);
+    }
+  };
+
   // Quiz state
   const [currentQuiz, setCurrentQuiz] = useState<any[] | null>(null);
   const [particles, setParticles] = useState<{ id: number; left: number; top: number; color: string; duration: number; size: number }[]>([]);
+  
+  // Custom chat flashcard synthesis states
+  const [isGeneratingFl, setIsGeneratingFl] = useState(false);
+  const [flSuccess, setFlSuccess] = useState<string | null>(null);
+
+  const handleGenerateFlashcardsFromHistory = async () => {
+    // We want at least one user message to formulate context
+    const hasUserMsg = messages.some(m => m.role === 'user');
+    if (!hasUserMsg) {
+      setErrorBanner("You need to chat with the AI tutor first to compile flashcards from your conversation!");
+      playFailureChime();
+      return;
+    }
+
+    setIsGeneratingFl(true);
+    setErrorBanner(null);
+    setFlSuccess(null);
+    playClickChime();
+
+    try {
+      const conversationText = messages
+        .filter(m => m.content.trim())
+        .slice(-15) // last 15 messages for high context
+        .map(m => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.content}`)
+        .join('\n\n');
+
+      const cards = await generateFlashcardsFromContextAI(conversationText, selectedSubject, apiKey);
+      if (cards && cards.length > 0) {
+        const formattedCards: Flashcard[] = cards.map((c, idx) => ({
+          id: `chat_card_${Date.now()}_${idx}`,
+          question: c.question,
+          answer: c.answer,
+          explanation: c.explanation || `Derived from AI chat on ${selectedSubject}`,
+          interval: 0,
+          repetition: 0,
+          easeFactor: 2.5,
+          dueDate: new Date().toISOString()
+        }));
+
+        if (decksState && onSaveDecksState) {
+          const existing = decksState['deck_free_space'] || [];
+          onSaveDecksState('deck_free_space', [...formattedCards, ...existing]);
+          setFlSuccess(`Successfully compiled ${cards.length} flashcards from your tutor chat! Check them out in your 'Free Space' study deck.`);
+          playSuccessChime();
+        } else {
+          const rawDecks = JSON.parse(localStorage.getItem('ethiolearn_decks_state') || '{}');
+          const existing = rawDecks['deck_free_space'] || [];
+          rawDecks['deck_free_space'] = [...formattedCards, ...existing];
+          localStorage.setItem('ethiolearn_decks_state', JSON.stringify(rawDecks));
+          setFlSuccess(`Successfully compiled ${cards.length} flashcards! Check them in your 'Free Space' study deck.`);
+          playSuccessChime();
+        }
+      } else {
+        throw new Error("Unable to formulate flashcards. Please type another message and try again.");
+      }
+    } catch (err: any) {
+      setErrorBanner(err.message || "Failed to generate cards from chat history.");
+      playFailureChime();
+    } finally {
+      setIsGeneratingFl(false);
+    }
+  };
 
   const triggerDopaminePop = () => {
     const colors = ['#C8962E', '#1A7A3C', '#BE1931', '#FFD700', '#1D4ED8'];
@@ -99,7 +233,24 @@ Always end your tutoring messages with 2-3 specific, challenging academic practi
   }, [messages, isTyping]);
 
   const saveHistory = (mList: ChatMessage[]) => {
-    localStorage.setItem(`ethiolearn_chat_history_${selectedSubject}`, JSON.stringify(mList.slice(-50)));
+    try {
+      // Slim down oldest base64 attachment data to prevent exceeding localStorage quota rules
+      const slimmedList = mList.map((m, idx) => {
+        if (m.attachment && idx < mList.length - 4) {
+          return {
+            ...m,
+            attachment: {
+              ...m.attachment,
+              data: '' // clear largest payload data for older messages
+            }
+          };
+        }
+        return m;
+      });
+      localStorage.setItem(`ethiolearn_chat_history_${selectedSubject}`, JSON.stringify(slimmedList.slice(-50)));
+    } catch (e) {
+      console.warn("Local storage quota limit exceeded:", e);
+    }
   };
 
   const clearHistory = () => {
@@ -113,13 +264,24 @@ Always end your tutoring messages with 2-3 specific, challenging academic practi
 
   const handleSend = async (textToSend?: string) => {
     const text = textToSend || inputValue;
-    if (!text.trim()) return;
+    if (!text.trim() && !attachedFile) return;
 
     // Allow request to proceed as the backend server has automatic fallback variables (like GEMINI_API_KEY) configured.
 
-    const updatedUserMessages = [...messages, { role: 'user', content: text } as ChatMessage];
+    const userMsg: ChatMessage = {
+      role: 'user',
+      content: text,
+      attachment: attachedFile ? {
+        name: attachedFile.name,
+        mimeType: attachedFile.mimeType,
+        data: attachedFile.data
+      } : undefined
+    };
+
+    const updatedUserMessages = [...messages, userMsg];
     setMessages(updatedUserMessages);
     setInputValue('');
+    setAttachedFile(null);
     setErrorBanner(null);
     setIsTyping(true);
     playClickChime();
@@ -254,7 +416,40 @@ Always end your tutoring messages with 2-3 specific, challenging academic practi
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 relative bg-[#0D0D0D] h-full">
+    <div 
+      className="flex flex-col flex-1 min-h-0 relative bg-[#0D0D0D] h-full"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileChange} 
+        accept="image/*,application/pdf" 
+        className="hidden" 
+      />
+
+      <AnimatePresence>
+        {isDragging && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-[#0D0D0D]/90 backdrop-blur-md z-50 flex flex-col items-center justify-center border-2 border-dashed border-[#C8962E] m-4 rounded-2xl"
+          >
+            <div className="p-6 rounded-2xl bg-[#C8962E]/10 border border-[#C8962E]/30 flex flex-col items-center gap-4 text-center">
+              <div className="w-16 h-16 rounded-full bg-[#C8962E]/20 flex items-center justify-center text-[#C8962E] animate-bounce">
+                <Paperclip className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="font-serif text-lg font-bold text-[#F0EDE8]">Drop Your Files Here</h3>
+                <p className="text-xs text-zinc-400 mt-1 max-w-xs">Scan and analyze any Image or PDF study materials instantly with EthioLearn AI Tutor</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {/* Top Banner Control */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111] p-4 rounded-xl border border-zinc-800 mb-4 shadow-md">
@@ -303,8 +498,27 @@ Always end your tutoring messages with 2-3 specific, challenging academic practi
           >
             <RefreshCw className="w-4 h-4" />
           </button>
+
+          {/* New Generate Flashcard from active chat option */}
+          <button
+            onClick={handleGenerateFlashcardsFromHistory}
+            disabled={isGeneratingFl || !messages.some(m => m.role === 'user')}
+            title="Generate Flashcards from active chat (+)"
+            className="px-3.5 py-2 rounded-lg bg-[#C8962E] text-[#0D0D0D] hover:bg-[#b08323] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-xs"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{isGeneratingFl ? "Compiling..." : "+ Generate Flashcards"}</span>
+          </button>
         </div>
       </div>
+
+      {/* Success Bar for Flashcard creation */}
+      {flSuccess && (
+        <div className="mb-4 bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-3 flex items-center gap-2.5 text-emerald-400 text-xs">
+          <Check className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span>{flSuccess}</span>
+        </div>
+      )}
 
       {/* Error Bar */}
       {errorBanner && (
@@ -347,6 +561,37 @@ Always end your tutoring messages with 2-3 specific, challenging academic practi
                       ? 'bg-[#C8962E] text-[#0D0D0D] font-medium rounded-tr-none'
                       : 'bg-[#0D0D0D] text-[#F0EDE8] border border-[#2A2A2A] rounded-tl-none font-sans'
                   }`}>
+                    {msg.attachment && (
+                      <div className="mb-2.5 max-w-full">
+                        {msg.attachment.mimeType.startsWith('image/') ? (
+                          msg.attachment.data ? (
+                            <img 
+                              src={`data:${msg.attachment.mimeType};base64,${msg.attachment.data}`}
+                              alt="Attachment" 
+                              referrerPolicy="no-referrer"
+                              className="max-h-60 w-auto rounded-lg border border-black/10 object-contain max-w-full mb-1"
+                            />
+                          ) : (
+                            <div className="flex items-center gap-2 p-2 rounded bg-zinc-900/60 border border-zinc-800 text-[11px] text-zinc-500">
+                              <File className="w-3.5 h-3.5" />
+                              <span>{msg.attachment.name} (Pruned Image)</span>
+                            </div>
+                          )
+                        ) : (
+                          <div className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs text-left ${
+                            msg.role === 'user' 
+                              ? 'bg-amber-950/20 border-amber-900/30 text-amber-900' 
+                              : 'bg-zinc-950/50 border-zinc-800 text-zinc-300'
+                          }`}>
+                            <FileText className="w-5 h-5 shrink-0 text-[#C8962E]" />
+                            <div className="min-w-0 overflow-hidden">
+                              <p className="truncate font-semibold">{msg.attachment.name}</p>
+                              <p className="text-[9px] text-zinc-550 font-mono uppercase tracking-wider">PDF Document</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {/* Preserve line breaks and output clean simple structures */}
                     <p className="whitespace-pre-line text-sm break-words">{msg.content}</p>
                   </div>
@@ -559,8 +804,53 @@ Always end your tutoring messages with 2-3 specific, challenging academic practi
           </button>
         </div>
 
+        {/* Active attachment card preview if one exists */}
+        {attachedFile && (
+          <div className="flex items-center gap-2.5 bg-[#161616] border border-[#2A2A2A] p-2 px-3 rounded-lg self-start text-xs text-zinc-300 relative animate-fade-in mb-2">
+            {attachedFile.previewUrl ? (
+              <img 
+                src={attachedFile.previewUrl} 
+                alt="Preview" 
+                referrerPolicy="no-referrer"
+                className="w-10 h-10 object-cover rounded border border-zinc-800"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded bg-[#C8962E]/10 border border-[#C8962E]/20 flex items-center justify-center text-[#C8962E]">
+                <FileText className="w-5 h-5" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0 max-w-[150px] md:max-w-xs text-left">
+              <p className="truncate font-medium text-zinc-200">{attachedFile.name}</p>
+              <p className="text-[10px] text-zinc-500 font-mono">
+                {attachedFile.mimeType === 'application/pdf' ? 'PDF Document' : 'Image attachment'}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setAttachedFile(null);
+                playClickChime();
+              }}
+              className="p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-white transition-colors cursor-pointer"
+              title="Remove attachment"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Message dispatch form bar */}
         <div className="flex gap-2 relative">
+          <button
+            onClick={() => {
+              playClickChime();
+              fileInputRef.current?.click();
+            }}
+            title="Attach study guide image or PDF"
+            className="px-3.5 bg-zinc-900 border border-[#2A2A2A] rounded-xl cursor-pointer flex items-center justify-center transition-colors text-zinc-400 hover:text-[#C8962E] hover:bg-zinc-800 shrink-0"
+          >
+            <Paperclip className="w-5 h-5" />
+          </button>
+
           <input
             type="text"
             value={inputValue}
@@ -569,13 +859,13 @@ Always end your tutoring messages with 2-3 specific, challenging academic practi
               if (e.key === 'Enter') handleSend();
             }}
             placeholder={language === 'en' ? `Ask tutor about ${selectedSubject}...` : `${selectedSubject} በተመለከተ ጥያቄ ይጠይቁ...`}
-            className="flex-1 bg-[#161616] text-[#F0EDE8] text-sm px-4 py-3.5 rounded-xl border border-[#2A2A2A] focus:border-[#C8962E] outline-none shadow-md transition-colors"
+            className="flex-1 bg-[#161616] text-[#F0EDE8] text-sm px-4 py-3.5 rounded-xl border border-[#2A2A2A] focus:border-[#C8962E] outline-none shadow-md transition-colors min-w-0"
           />
 
           <button
             onClick={startVoiceInput}
             title="Speech Input (Web Speech API)"
-            className={`px-3.5 bg-zinc-900 border border-[#2A2A2A] rounded-xl cursor-pointer flex items-center justify-center transition-colors ${
+            className={`px-3.5 bg-zinc-900 border border-[#2A2A2A] rounded-xl cursor-pointer flex items-center justify-center transition-colors shrink-0 ${
               listening ? 'text-red-500 border-red-500 bg-red-950/20 animate-pulse' : 'text-zinc-400 hover:text-[#C8962E] hover:bg-zinc-800'
             }`}
           >
@@ -584,8 +874,8 @@ Always end your tutoring messages with 2-3 specific, challenging academic practi
 
           <button
             onClick={() => handleSend()}
-            disabled={!inputValue.trim() || isTyping}
-            className="px-5 bg-gradient-to-r from-[#C8962E] to-[#1A7A3C] hover:opacity-95 text-[#0D0D0D] font-bold rounded-xl cursor-pointer flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed shadow transition-all hover:scale-[1.02]"
+            disabled={(!inputValue.trim() && !attachedFile) || isTyping}
+            className="px-5 bg-gradient-to-r from-[#C8962E] to-[#1A7A3C] hover:opacity-95 text-[#0D0D0D] font-bold rounded-xl cursor-pointer flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed shadow transition-all hover:scale-[1.02] shrink-0"
           >
             <Send className="w-5 h-5" />
           </button>

@@ -1,7 +1,28 @@
 {
-  "short_name": "EthioLearn",
+  "id": "com.ethiolearn.pwa",
   "name": "EthioLearn Pro Campus",
-  "description": "Premium AI Learning Platform for Ethiopian University & High School Students",
+  "short_name": "EthioLearn",
+  "description": "Premium AI Learning Platform featuring personalized study assistants, active recall flashcards, and high-fidelity soundscapes modeled for school & university students.",
+  "lang": "en-US",
+  "dir": "ltr",
+  "categories": [
+    "education",
+    "productivity",
+    "utilities",
+    "books"
+  ],
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "theme_color": "#0D0D0D",
+  "background_color": "#0D0D0D",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "window-controls-overlay",
+    "minimal-ui",
+    "browser"
+  ],
+  "orientation": "any",
   "icons": [
     {
       "src": "/ethiolearn_icon.jpg",
@@ -16,9 +37,112 @@
       "purpose": "any"
     }
   ],
-  "start_url": "/",
-  "background_color": "#0D0D0D",
-  "theme_color": "#0D0D0D",
-  "display": "standalone",
-  "orientation": "portrait"
+  "screenshots": [
+    {
+      "src": "/ethiolearn_icon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "EthioLearn Pro Portal - Study Desktop Dashboard"
+    },
+    {
+      "src": "/ethiolearn_icon.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "EthioLearn Pro Mobile Suite"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "AI Campus Assistant",
+      "short_name": "Tutor",
+      "description": "Open your premium AI study companion chat",
+      "url": "/?shortcut=tutor",
+      "icons": [
+        {
+          "src": "/ethiolearn_icon.jpg",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Mind Relax Soundscapes",
+      "short_name": "SoundSpace",
+      "description": "Calming spatial binaural ambient synthesis",
+      "url": "/?shortcut=mindlax",
+      "icons": [
+        {
+          "src": "/ethiolearn_icon.jpg",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "edge_side_panel": {
+    "preferred_width": 440
+  },
+  "note_taking": {
+    "new_note_url": "/?shortcut=notes"
+  },
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "scope_extensions": [
+    {
+      "origin": "https://ais-pre-tl2qjbl3mf3wzgihvfexfg-14765837278.europe-west2.run.app"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/?action=open-file",
+      "accept": {
+        "text/plain": [".txt", ".md"],
+        "application/json": [".json"]
+      }
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+ethiolearn",
+      "url": "/?uri=%s"
+    }
+  ],
+  "share_target": {
+    "action": "/?action=share-to-campus",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "widgets": [
+    {
+      "name": "Study Streak Tracker",
+      "short_name": "Streak",
+      "description": "See your active memory study cycle metrics.",
+      "tag": "streak-widget",
+      "ms_ac_template": "",
+      "icons": [
+        {
+          "src": "/ethiolearn_icon.jpg",
+          "sizes": "192x192",
+          "type": "image/jpeg"
+        }
+      ],
+      "screenshots": [
+        {
+          "src": "/ethiolearn_icon.jpg",
+          "sizes": "512x512",
+          "type": "image/jpeg",
+          "label": "Streak Widget Monitor View"
+        }
+      ]
+    }
+  ],
+  "iarc_rating_id": "e830fbf0-ffbe-4d43-91ee-e6d234a413d7"
 }

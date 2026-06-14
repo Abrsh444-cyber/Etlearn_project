@@ -65,25 +65,46 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Use Stale-While-Revalidate Strategy for core frontend assets & external CDNs
+  // Use Cache-First with Network Fallback for static assets
   event.respondWith(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.match(request).then((cachedResponse) => {
-        const fetchedResponse = fetch(request)
+    caches.match(request).then((cachedResponse) => {
+      if (cachedResponse) {
+        // Trigger a background fetch to keep cache up to date (Stale-While-Revalidate)
+        fetch(request)
           .then((networkResponse) => {
-            // Only cache valid standard responses
-            if (networkResponse.status === 200 && networkResponse.type === 'basic' || networkResponse.type === 'cors') {
-              cache.put(request, networkResponse.clone());
+            if (networkResponse && networkResponse.status === 200) {
+              const cacheCopy = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, cacheCopy);
+              });
             }
-            return networkResponse;
           })
           .catch(() => {
-            // Silence network failure since we have cache
-            return null;
+            // Silence background check failure
           });
+        return cachedResponse;
+      }
 
-        return cachedResponse || fetchedResponse;
-      });
+      // If not in cache, fetch from network
+      return fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const cacheCopy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, cacheCopy);
+            });
+          }
+          return networkResponse;
+        })
+        .catch((error) => {
+          console.log('[Service Worker] Resource fetch failed offline:', request.url);
+          // Return a structured offline message response fallback
+          return new Response('Offline and not cached.', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain' }
+          });
+        });
     })
   );
 });

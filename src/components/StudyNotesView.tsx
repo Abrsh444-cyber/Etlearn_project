@@ -8,9 +8,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   BookOpen, Edit3, Clipboard, FileText, Download, Sparkles, Plus, Trash2, Check, HelpCircle, Save, Tags, AlertCircle
 } from 'lucide-react';
-import { CustomNote } from '../types';
+import { CustomNote, Flashcard } from '../types';
 import { PREBUILT_STUDY_NOTES } from '../data/prebuiltContent';
-import { generateNoteAI } from '../utils/ai';
+import { generateNoteAI, generateFlashcardsFromContextAI } from '../utils/ai';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import { User } from 'firebase/auth';
 import { exportNoteToGoogleDoc, exportNotesToGoogleSheets } from '../utils/workspace';
@@ -25,6 +25,8 @@ interface StudyNotesViewProps {
   googleToken: string | null;
   onGoogleSignIn: () => Promise<void>;
   onGoogleSignOut: () => Promise<void>;
+  decksState?: { [deckId: string]: Flashcard[] };
+  onSaveDecksState?: (deckId: string, cards: Flashcard[]) => void;
 }
 
 export default function StudyNotesView({ 
@@ -35,7 +37,9 @@ export default function StudyNotesView({
   googleUser,
   googleToken,
   onGoogleSignIn,
-  onGoogleSignOut
+  onGoogleSignOut,
+  decksState,
+  onSaveDecksState
 }: StudyNotesViewProps) {
   const [activeTab, setActiveTab] = useState<'prebuilt' | 'ai_generator' | 'notepad'>('prebuilt');
   const [selectedNoteId, setSelectedNoteId] = useState<'note_et' | 'note_ec' | 'note_bi' | 'note_eg' | 'note_mc'>('note_et');
@@ -60,6 +64,65 @@ export default function StudyNotesView({
   const [noteSubject, setNoteSubject] = useState(enrolledSubjects[0] || 'Emerging Technologies');
   const [noteColor, setNoteColor] = useState('bg-amber-950/20');
   const [isSavedToast, setIsSavedToast] = useState(false);
+
+  // Flashcards builder from Study Notes state
+  const [isGeneratingNoteCards, setIsGeneratingNoteCards] = useState(false);
+  const [noteCardsSuccess, setNoteCardsSuccess] = useState<string | null>(null);
+  const [noteCardsErr, setNoteCardsErr] = useState<string | null>(null);
+
+  const handleGenerateFlashcardsFromActiveNote = async (title: string, content: string, subject: string) => {
+    if (!title || !title.trim()) {
+      setNoteCardsErr("Study note title cannot be empty! Please select or draft a valid note.");
+      playFailureChime();
+      return;
+    }
+
+    setIsGeneratingNoteCards(true);
+    setNoteCardsErr(null);
+    setNoteCardsSuccess(null);
+    playClickChime();
+
+    try {
+      // Stripped text from HTML
+      const strippedContent = content ? content.replace(/<[^>]*>/g, '').trim() : '';
+      const combinedContext = `Topic: ${title}\nSubject: ${subject}\n\nContent:\n${strippedContent || 'No additional content provided'}`;
+
+      const generated = await generateFlashcardsFromContextAI(combinedContext, subject, apiKey);
+      if (generated && generated.length > 0) {
+        const customCards: Flashcard[] = generated.map((c, i) => ({
+          id: `notecard_${Date.now()}_${i}`,
+          question: c.question,
+          answer: c.answer,
+          explanation: c.explanation || `Compiled from note: "${title}"`,
+          interval: 0,
+          repetition: 0,
+          easeFactor: 2.5,
+          dueDate: new Date().toISOString()
+        }));
+
+        if (decksState && onSaveDecksState) {
+          const original = decksState["deck_free_space"] || [];
+          onSaveDecksState("deck_free_space", [...customCards, ...original]);
+          setNoteCardsSuccess(`Successfully compiled ${generated.length} flashcards from your note "${title}"! Saved in 'Free Space' review deck.`);
+          playSuccessChime();
+        } else {
+          const localState = JSON.parse(localStorage.getItem('ethiolearn_decks_state') || '{}');
+          const original = localState["deck_free_space"] || [];
+          localState["deck_free_space"] = [...customCards, ...original];
+          localStorage.setItem('ethiolearn_decks_state', JSON.stringify(localState));
+          setNoteCardsSuccess(`Successfully compiled ${generated.length} flashcards! Saved in 'Free Space' review deck.`);
+          playSuccessChime();
+        }
+      } else {
+        throw new Error("Unable to synthesize card pairs from this note. Please enrich the note text and try again.");
+      }
+    } catch (err: any) {
+      setNoteCardsErr(err.message || "Failed to generate flashcards from this note.");
+      playFailureChime();
+    } finally {
+      setIsGeneratingNoteCards(false);
+    }
+  };
 
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -426,6 +489,20 @@ export default function StudyNotesView({
         </div>
       )}
 
+      {/* Note-to-Flashcard Synthesis Feedback banners */}
+      {noteCardsSuccess && (
+        <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-3.5 flex items-center gap-2.5 text-emerald-400 text-xs">
+          <Check className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span>{noteCardsSuccess}</span>
+        </div>
+      )}
+      {noteCardsErr && (
+        <div className="bg-red-950/30 border border-red-500/30 rounded-xl p-3.5 flex items-center gap-2.5 text-red-500/80 text-xs text-left">
+          <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+          <span>{noteCardsErr}</span>
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
         
         {/* Prebuilt Handbook Tab */}
@@ -481,6 +558,20 @@ export default function StudyNotesView({
                         className="px-3.5 py-1.5 bg-zinc-900 border border-[#2A2A2A] hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 rounded text-[11px] flex items-center gap-1.5 cursor-pointer"
                       >
                         <Download className="w-3.5 h-3.5" /> Export PDF Note
+                      </button>
+
+                      {/* AI Flashcards compilation button (+) */}
+                      <button
+                        onClick={() => handleGenerateFlashcardsFromActiveNote(
+                          selectedNote.title,
+                          selectedNote.intro + "\n\n" + selectedNote.definition + "\n\n" + selectedNote.explanation,
+                          selectedNote.subject
+                        )}
+                        disabled={isGeneratingNoteCards}
+                        className="px-3.5 py-1.5 bg-gradient-to-r from-[#C8962E] to-emerald-600 hover:opacity-95 text-white font-bold rounded text-[11px] flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        title="Generate revision flashcards from this academic note (+)"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> {isGeneratingNoteCards ? 'Compiling...' : 'Generate Flashcards'}
                       </button>
 
                       {googleUser ? (
@@ -651,10 +742,12 @@ export default function StudyNotesView({
               <div className="flex justify-between items-center pb-2 border-b border-[#2A2A2A]">
                 <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Your Custom Sheets</span>
                 <button
-                  onClick={startNewNote}
-                  className="p-1 px-2.5 bg-[#C8962E] text-[#0D0D0D] text-[10px] font-bold rounded flex items-center gap-1 hover:opacity-90 cursor-pointer"
+                  onClick={() => handleGenerateFlashcardsFromActiveNote(noteTitle, noteContent, noteSubject)}
+                  disabled={isGeneratingNoteCards || !noteTitle.trim()}
+                  className="p-1 px-2.5 bg-gradient-to-r from-[#C2822B] to-emerald-600 text-white text-[10px] font-bold rounded flex items-center gap-1 hover:opacity-95 cursor-pointer disabled:opacity-40"
+                  title="Generate revision memory cards from this active custom note (+)"
                 >
-                  <Plus className="w-3.5 h-3.5" /> New Note
+                  <Plus className="w-3.5 h-3.5" /> {isGeneratingNoteCards ? 'Compiling...' : 'Generate Flashcards'}
                 </button>
               </div>
 
@@ -703,7 +796,16 @@ export default function StudyNotesView({
             {/* Note Editor Stage representation */}
             <div className="lg:col-span-2 bg-[#161616] border border-[#2A2A2A] p-5 rounded-xl space-y-4 shadow-xl">
               <div className="flex justify-between items-center pb-2.5 border-b border-[#2A2A2A] flex-wrap gap-2">
-                <h3 className="font-serif font-bold text-sm text-[#F0EDE8]">{editingNoteId ? 'Edit Study Note' : 'Draft New Sheet'}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-serif font-bold text-sm text-[#F0EDE8]">{editingNoteId ? 'Edit Study Note' : 'Draft New Sheet'}</h3>
+                  <button
+                    onClick={startNewNote}
+                    className="text-[10px] text-zinc-500 hover:text-[#C8962E] font-medium underline ml-3 cursor-pointer"
+                    title="Clear editor inputs to draft a new sheet from scratch"
+                  >
+                    (New Blank Note)
+                  </button>
+                </div>
                 
                 {isSavedToast && (
                   <span className="text-[10px] bg-emerald-950/30 border border-emerald-500/20 text-emerald-400 py-1 px-2.5 rounded-full flex items-center gap-1 animate-pulse">

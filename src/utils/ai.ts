@@ -4,9 +4,16 @@
  */
 
 // Helper to stream/parse Anthropic SSE responses forwarded from Express proxy
+export interface ChatAttachment {
+  name: string;
+  mimeType: string;
+  data: string; // raw base64 string
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  attachment?: ChatAttachment;
 }
 
 export interface StreamCallbacks {
@@ -156,6 +163,54 @@ export async function generateFlashcardsAI(
   apiKey: string
 ): Promise<any[]> {
   const promptMessage = `Generate 10 high-quality flashcards for revision on: "${topic}" inside the "${subject}" curriculum.
+Respond strictly in a JSON array of objects. Do not wrap inside code tags or markdown blocks, do not write any standard filler text. 
+
+Each object must contain:
+1. "question": String (clean, precise questioning)
+2. "answer": String (concise, factual summary)
+3. "explanation": String (optional study tip or mnemonic)`;
+
+  const messages: ChatMessage[] = [{ role: 'user', content: promptMessage }];
+  const system = "You are a flashcards drafting engine. You output exclusively raw, unformatted JSON lists. No greeting, no markdown wrapper.";
+
+  return new Promise((resolve, reject) => {
+    submitClaudeChat(messages, system, apiKey, {
+      onChunk: () => {},
+      onComplete: (text) => {
+        try {
+          let cleanJson = text.trim();
+          if (cleanJson.startsWith('```json')) {
+            cleanJson = cleanJson.substring(7);
+          }
+          if (cleanJson.startsWith('```')) {
+            cleanJson = cleanJson.substring(3);
+          }
+          if (cleanJson.endsWith('```')) {
+            cleanJson = cleanJson.substring(0, cleanJson.length - 3);
+          }
+          const cards = JSON.parse(cleanJson.trim());
+          resolve(Array.isArray(cards) ? cards : []);
+        } catch (err) {
+          reject(new Error('Failed to parse AI flashcard lists. Let us try one more time.'));
+        }
+      },
+      onError: (err) => reject(err)
+    });
+  });
+}
+
+// Generate flashcards from custom context (like notes or chat histories)
+export async function generateFlashcardsFromContextAI(
+  context: string,
+  subject: string,
+  apiKey: string
+): Promise<any[]> {
+  const promptMessage = `Based on the following custom educational content or conversation context:
+"""
+${context}
+"""
+
+Generate 5 high-quality flashcards for revision. Make sure they extract the core concepts, figures, equations, or vocabulary from the text provided.
 Respond strictly in a JSON array of objects. Do not wrap inside code tags or markdown blocks, do not write any standard filler text. 
 
 Each object must contain:

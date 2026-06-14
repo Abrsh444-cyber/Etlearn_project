@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Home, Bot, Layers, FileText, BookOpen, BarChart, Settings, Flame, GraduationCap, 
   HelpCircle, Calendar, Compass, Clock, Award, Landmark, Sparkles, LogOut, Check, AlertTriangle, Key, Bell, Trash2, WifiOff,
-  Sun, Moon
+  Sun, Moon, Menu, X, Music
 } from 'lucide-react';
 
 import { StudentProfile, Flashcard, CustomNote } from './types';
@@ -18,6 +18,7 @@ import FlashcardsDeck from './components/FlashcardsDeck';
 import ExamPrep from './components/ExamPrep';
 import StudyNotesView from './components/StudyNotesView';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+import MindRelax from './components/MindRelax';
 import EthioLearnLogo from './components/EthioLearnLogo';
 import StudentAvatar from './components/StudentAvatar';
 import StudentAvatarSelector from './components/StudentAvatarSelector';
@@ -26,7 +27,7 @@ import { jsPDF } from 'jspdf';
 
 import { ETHIOPIAN_PROVERBS } from './data/ethiopianProverbs';
 import { getEthiopianDate, toGeezNumeral, ETHIOPIAN_HOLIDAYS } from './utils/ethiopianCalendar';
-import { playClickChime, playSuccessChime, playFailureChime } from './utils/audio';
+import { playClickChime, playSuccessChime, playFailureChime, playAlarmSound } from './utils/audio';
 
 import { initAuth, googleSignIn, logoutGoogle, exportAnalyticsToGoogleSheets } from './utils/workspace';
 import { User } from 'firebase/auth';
@@ -104,7 +105,39 @@ if (typeof window !== 'undefined') {
 
 export default function App() {
   const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'tutor' | 'flashcards' | 'exam' | 'notes' | 'analytics' | 'settings'>('dashboard');
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'tutor' | 'flashcards' | 'exam' | 'notes' | 'analytics' | 'settings' | 'mindlax'>('dashboard');
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    const handleAppInstalled = () => {
+      setIsInstallable(false);
+      setDeferredPrompt(null);
+    };
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const triggerPWAInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`PWA installation outcome: ${outcome}`);
+    setDeferredPrompt(null);
+    setIsInstallable(false);
+  };
+
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   
   // Google Auth states for Sheets/Docs integration
@@ -125,14 +158,44 @@ export default function App() {
     return (localStorage.getItem('ethiolearn_theme') as 'dark' | 'light') || 'dark';
   });
 
+  // Synchronize dynamic light/dark class with HTML document root element
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const root = window.document.documentElement;
+      if (theme === 'dark') {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    }
+  }, [theme]);
+
   // State to control About & Support Modal Dialog Hub
   const [showInfoDialog, setShowInfoDialog] = useState(false);
 
   // Notifications and system toasts
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Study Reminders and Notifications engine
+  interface StudyReminder {
+    id: string;
+    time: string; // HH:MM
+    label: string;
+    enabled: boolean;
+    lastNotifiedDate: string; // YYYY-MM-DD
+  }
+
+  const [reminders, setReminders] = useState<StudyReminder[]>([]);
+  const [notificationPermission, setNotificationPermission] = useState<string>('default');
+  const [activeAlarm, setActiveAlarm] = useState<StudyReminder | null>(null);
+
+  // Quick reminder addition form states inside Settings
+  const [newReminderTime, setNewReminderTime] = useState('16:00');
+  const [newReminderLabel, setNewReminderLabel] = useState('AI Tutor Flashcards Revision');
+
   // Setup/Onboarding loader
   const [isLoading, setIsLoading] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
@@ -292,6 +355,26 @@ export default function App() {
       setDailyHoursGoal(2);
     }
 
+    // Load study reminders
+    const storedReminders = localStorage.getItem('ethiolearn_study_reminders');
+    if (storedReminders) {
+      setReminders(JSON.parse(storedReminders));
+    } else {
+      const defaultReminders = [
+        { id: '1', time: '08:30', label: 'Morning Quiz Challenge', enabled: true, lastNotifiedDate: '' },
+        { id: '2', time: '16:00', label: 'Spaced Repetition Flashcards', enabled: true, lastNotifiedDate: '' },
+        { id: '3', time: '20:30', label: 'AI Tutor Subject Exploration', enabled: true, lastNotifiedDate: '' }
+      ];
+      setReminders(defaultReminders);
+      if (activeEmail || !hasAccounts) {
+        localStorage.setItem('ethiolearn_study_reminders', JSON.stringify(defaultReminders));
+      }
+    }
+
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+
     setIsLoading(false);
 
     // 3. Register Alt + [1-7] Navigation Keyboard Shortcuts
@@ -335,6 +418,134 @@ export default function App() {
       if (unsubscribeAuth) unsubscribeAuth();
     };
   }, []);
+
+  // Periodic Reminders alarm checking loop
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      const currentHoursStr = String(now.getHours()).padStart(2, '0');
+      const currentMinutesStr = String(now.getMinutes()).padStart(2, '0');
+      const currentTime = `${currentHoursStr}:${currentMinutesStr}`;
+      
+      const todayString = now.toISOString().split('T')[0]; // "YYYY-MM-DD"
+      
+      let updatedReminders = [...reminders];
+      let didTrigger = false;
+      
+      reminders.forEach((r, idx) => {
+        if (r.enabled && r.time === currentTime && r.lastNotifiedDate !== todayString) {
+          didTrigger = true;
+          updatedReminders[idx] = { ...r, lastNotifiedDate: todayString };
+          
+          // Trigger standard system notification
+          if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification(`EthioLearn Study Alert! ⏰`, {
+                body: `Study time: "${r.label}". Your daily goal targets await!`,
+                icon: '/logo.png'
+              });
+            } catch (e) {
+              console.warn("Failed to dispatch push notification:", e);
+            }
+          }
+          
+          setActiveAlarm(r);
+          playAlarmSound();
+        }
+      });
+      
+      if (didTrigger) {
+        setReminders(updatedReminders);
+        localStorage.setItem('ethiolearn_study_reminders', JSON.stringify(updatedReminders));
+      }
+    }, 12000); // Check every 12 seconds
+    
+    return () => clearInterval(interval);
+  }, [reminders]);
+
+  const requestNotificationPermission = () => {
+    if (!('Notification' in window)) {
+      showToast("System level push notifications not supported on this browser.");
+      return;
+    }
+    Notification.requestPermission().then((perm) => {
+      setNotificationPermission(perm);
+      if (perm === 'granted') {
+        showToast("System Notifications authorized successfully! 🔔");
+        try {
+          new Notification("Welcome to EthioLearn Reminders ⏰", {
+            body: "Push study reminders will safely alarm you at your configured hours.",
+            icon: '/logo.png'
+          });
+        } catch (e) {}
+        playSuccessChime();
+      } else {
+        showToast("Notifications permission declined.");
+      }
+    });
+  };
+
+  const handleToggleReminder = (id: string) => {
+    playClickChime();
+    const updated = reminders.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r);
+    setReminders(updated);
+    localStorage.setItem('ethiolearn_study_reminders', JSON.stringify(updated));
+    showToast("Study reminder status updated.");
+  };
+
+  const handleDeleteReminder = (id: string) => {
+    playClickChime();
+    const updated = reminders.filter(r => r.id !== id);
+    setReminders(updated);
+    localStorage.setItem('ethiolearn_study_reminders', JSON.stringify(updated));
+    showToast("Study reminder removed.");
+  };
+
+  const handleAddReminder = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newReminderLabel.trim()) return;
+    
+    const newRem = {
+      id: Date.now().toString(),
+      time: newReminderTime,
+      label: newReminderLabel.trim(),
+      enabled: true,
+      lastNotifiedDate: ''
+    };
+    
+    const updated = [...reminders, newRem];
+    setReminders(updated);
+    localStorage.setItem('ethiolearn_study_reminders', JSON.stringify(updated));
+    
+    setNewReminderLabel('');
+    showToast(`Successfully scheduled study reminder at ${newReminderTime}! ⏰`);
+    playSuccessChime();
+    
+    if ('Notification' in window && Notification.permission === 'default') {
+      setTimeout(() => {
+        requestNotificationPermission();
+      }, 1000);
+    }
+  };
+
+  const handleTestReminder = (rId: string) => {
+    const target = reminders.find(rem => rem.id === rId);
+    if (!target) return;
+    
+    playAlarmSound();
+    showToast(`[Test Trigger] Bell chime alarm sounding for: ${target.label}`);
+    
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(`[Test Remind Alarm] ${target.label}`, {
+          body: "EthioLearn active notification study testing triggers successfully!",
+          icon: '/logo.png'
+        });
+      } catch (e) {}
+    } else {
+      setActiveAlarm(target);
+    }
+  };
 
   const handleOnboardingComplete = (newProfile: StudentProfile) => {
     setProfile(newProfile);
@@ -637,6 +848,7 @@ export default function App() {
     { id: 'exam', label: 'Exam Prep', icon: FileText, badge: 'MCQ', labelAm: "ፈተና ማዘጋጃ" },
     { id: 'notes', label: 'Study Notes', icon: BookOpen, badge: 'AI', labelAm: "የጥናት ማስታወሻ" },
     { id: 'analytics', label: 'Analytics', icon: BarChart, badge: null, labelAm: "ውጤት ትንተና" },
+    { id: 'mindlax', label: 'Mind Relax', icon: Music, badge: 'Hi-Fi', labelAm: "አእምሮ ማራገቢያ" },
     { id: 'settings', label: 'Settings', icon: Settings, badge: null, labelAm: "ቅንብሮች" }
   ];
 
@@ -658,15 +870,13 @@ export default function App() {
   };
 
   // Cohesive styling properties matching chosen theme
-  const rootStyle = isDark 
-    ? 'bg-[#040816] text-[#F0EDE8]' 
-    : 'bg-[#F1F5F9] text-slate-800';
+  const rootStyle = 'bg-main-bg text-title-dominant';
   const asideStyle = isDark 
-    ? 'bg-[#0A0E1D] border-r border-[#1E293B]/60 text-slate-200' 
-    : 'bg-white border-r border-slate-200/80 text-slate-800 shadow-[2px_0_12px_rgba(15,23,42,0.03)]';
-  const cTitleStyle = isDark ? 'text-[#F0EDE8]' : 'text-slate-900';
-  const cSubStyle = isDark ? 'text-zinc-400' : 'text-slate-500';
-  const cThinBorder = isDark ? 'border-[#1E293B]/70' : 'border-slate-100';
+    ? 'bg-surface-elevated border-r border-divider-subtle text-title-dominant shadow-[0_0_20px_rgba(168,85,247,0.15)]' 
+    : 'bg-surface-elevated border-r border-divider-subtle text-title-dominant shadow-sm';
+  const cTitleStyle = 'text-title-dominant';
+  const cSubStyle = 'text-subtext-explain';
+  const cThinBorder = 'border-divider-subtle';
 
   return (
     <div className={`min-h-screen flex flex-col md:flex-row select-none relative font-sans antialiased overflow-x-hidden transition-colors duration-300 ${rootStyle}`}>
@@ -732,6 +942,291 @@ export default function App() {
             <Sparkles className="w-4.5 h-4.5 text-[#C8962E] shrink-0 animate-pulse" />
             <span>{toastMessage}</span>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Dynamic Active Study Alarm Modal Overlap */}
+      <AnimatePresence>
+        {activeAlarm && (
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-lg z-50 flex items-center justify-center p-4 select-none">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-md rounded-3xl border border-[#C8962E]/40 bg-[#0B0D1A] p-6 text-slate-100 shadow-[0_0_50px_rgba(200,150,46,0.15)] flex flex-col items-center text-center overflow-hidden"
+            >
+              {/* Traditional colorful horizontal highlight */}
+              <div className="absolute top-0 left-0 right-0 h-1.5 flex">
+                <div className="flex-1 bg-[#BE1931]" />
+                <div className="flex-1 bg-[#C8962E]" />
+                <div className="flex-1 bg-[#1A7A3C]" />
+              </div>
+
+              {/* Pulsing alarm bell */}
+              <motion.div 
+                animate={{ 
+                  rotate: [0, -10, 10, -10, 10, 0],
+                  scale: [1, 1.05, 1, 1.05, 1] 
+                }}
+                transition={{ 
+                  repeat: Infinity, 
+                  duration: 0.8,
+                  repeatType: "reverse"
+                }}
+                className="w-16 h-16 rounded-full bg-[#C8962E]/20 flex items-center justify-center text-[#C8962E] border border-[#C8962E]/40 shadow-lg shadow-[#C8962E]/15 mb-4 mt-2"
+              >
+                <Bell className="w-8 h-8 text-[#C8962E]" />
+              </motion.div>
+
+              <p className="text-[10px] text-[#C8962E] font-black uppercase tracking-widest leading-none">ETHIOLEARN STUDY ALARM TRIGGERED</p>
+              <h2 className="font-serif text-3xl font-extrabold text-white mt-1.5 tracking-tight">{activeAlarm.time}</h2>
+
+              <p className="text-zinc-400 text-xs mt-1">Ready for your academic success?</p>
+              
+              <div className="my-5 p-4 bg-zinc-950/80 rounded-2xl border border-zinc-900 w-full">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-1.5 text-[9px]">TODAY'S RESERVED SESSION</p>
+                <p className="text-[#F0EDE8] font-bold font-serif text-sm">"{activeAlarm.label}"</p>
+                
+                <p className="text-[10px] text-zinc-400 italic mt-3 leading-relaxed">
+                  "The roots of education are bitter, but the fruit is sweet." — Ethiopian Academic proverb
+                </p>
+              </div>
+
+              {/* Navigation control options */}
+              <div className="flex flex-col gap-2.5 w-full">
+                <button
+                  onClick={() => {
+                    playSuccessChime();
+                    const lowerLabel = activeAlarm.label.toLowerCase();
+                    if (lowerLabel.includes('tutor') || lowerLabel.includes('ask') || lowerLabel.includes('chat') || lowerLabel.includes('subject')) {
+                      setCurrentPage('tutor');
+                    } else if (lowerLabel.includes('flash') || lowerLabel.includes('card') || lowerLabel.includes('sm-2')) {
+                      setCurrentPage('flashcards');
+                    } else if (lowerLabel.includes('exam') || lowerLabel.includes('prep') || lowerLabel.includes('test') || lowerLabel.includes('quiz')) {
+                      setCurrentPage('exam');
+                    } else if (lowerLabel.includes('note') || lowerLabel.includes('write')) {
+                      setCurrentPage('notes');
+                    } else {
+                      setCurrentPage('dashboard');
+                    }
+                    setActiveAlarm(null);
+                    showToast("Studying routine initiated successfully!");
+                  }}
+                  className="w-full py-3.5 bg-gradient-to-r from-[#C28E2B] to-[#1A7A3C] hover:opacity-95 text-black font-black uppercase tracking-wider text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  🚀 START STUDYING NOW
+                </button>
+                
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    onClick={() => {
+                      playClickChime();
+                      try {
+                        const [h, m] = activeAlarm.time.split(':').map(Number);
+                        const futureDate = new Date();
+                        futureDate.setHours(h);
+                        futureDate.setMinutes(m + 5);
+                        const sh = String(futureDate.getHours()).padStart(2, '0');
+                        const sm = String(futureDate.getMinutes()).padStart(2, '0');
+                        const newTime = `${sh}:${sm}`;
+                        
+                        const snoozedReminders = reminders.map(r => 
+                          r.id === activeAlarm.id 
+                            ? { ...r, time: newTime, lastNotifiedDate: '' } 
+                            : r
+                        );
+                        setReminders(snoozedReminders);
+                        localStorage.setItem('ethiolearn_study_reminders', JSON.stringify(snoozedReminders));
+                        showToast(`Alarm snoozed: scheduled reminder moved to ${newTime}!`);
+                      } catch (e) {
+                        showToast("Snoozed alarm (5m).");
+                      }
+                      setActiveAlarm(null);
+                    }}
+                    className="py-2.5 bg-zinc-900 hover:bg-zinc-850 text-zinc-350 font-bold text-xs rounded-xl border border-zinc-800 transition-colors cursor-pointer"
+                  >
+                    💤 Snooze 5m
+                  </button>
+                  <button
+                    onClick={() => {
+                      playClickChime();
+                      setActiveAlarm(null);
+                      showToast("Alarm dismissed. Continue with your study routine!");
+                    }}
+                    className="py-2.5 bg-zinc-950 hover:bg-zinc-900 hover:text-red-400 text-zinc-500 font-bold text-xs rounded-xl border border-zinc-900 transition-colors cursor-pointer"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Top Header */}
+      <header className={`md:hidden flex items-center justify-between p-4 sticky top-0 z-30 border-b transition-colors shadow-sm select-none ${
+        isDark ? 'bg-[#060a1a] border-zinc-900 text-[#F0EDE8]' : 'bg-white border-slate-200 text-slate-800'
+      }`}>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              playClickChime();
+              setIsMobileMenuOpen(true);
+            }}
+            className="p-1 px-1.5 hover:bg-zinc-850/15 rounded-lg transition-colors border border-transparent cursor-pointer"
+            title="Open Menu"
+          >
+            <Menu className="w-6 h-6 text-[#C8962E]" />
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <EthioLearnLogo size={32} />
+            <div>
+              <h1 className={`font-serif text-xs font-bold tracking-tight ${cTitleStyle}`}>EthioLearn Pro</h1>
+              <p className="text-[8px] text-[#1A7A3C] uppercase tracking-wider font-extrabold leading-none mt-0.5">Mobile Campus</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Traditional Ethiopian Day badge on mobile */}
+        <div className={`flex items-center gap-2 p-1 px-2 rounded-lg text-[10px] border ${
+          isDark ? 'bg-zinc-950 border-zinc-900' : 'bg-slate-50 border-slate-100 shadow-sm'
+        }`}>
+          <div className="text-right">
+            <span className="block text-[#C8962E] font-medium leading-none font-serif text-[9px]">{ethCalendarInfo.formatted.split(',')[0]}</span>
+          </div>
+          <div className="w-5 h-5 rounded bg-[#C8962E]/10 flex items-center justify-center font-serif text-[#C8962E] font-bold border border-[#C8962E]/20 text-[10px]">
+            {toGeezNumeral(ethCalendarInfo.day)}
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Slide-Out Side Navigation Drawer */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            {/* Backdrop overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/70 z-40 md:hidden"
+            />
+            {/* Side drawer panel */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className={`fixed top-0 left-0 bottom-0 w-72 z-50 p-5 flex flex-col justify-between md:hidden shadow-3xl border-r ${
+                isDark 
+                  ? 'bg-[#0A0D1A] border-zinc-900 text-[#F0EDE8]' 
+                  : 'bg-white border-slate-200 text-slate-800'
+              }`}
+            >
+              <div className="space-y-6">
+                
+                {/* Main Logo custom wordmark inside slide drawer */}
+                <div className="flex items-center justify-between pb-4 border-b border-zinc-500/10">
+                  <div className="flex items-center gap-2.5">
+                    <EthioLearnLogo size={36} />
+                    <div>
+                      <h2 className={`font-serif text-sm font-bold tracking-tight ${cTitleStyle}`}>EthioLearn Pro</h2>
+                      <p className="text-[9px] text-[#1A7A3C] uppercase tracking-wider font-extrabold mt-0.5">ተማር • አድግ • ብልጽግ</p>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      playClickChime();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="p-2 rounded-lg hover:bg-zinc-850/20 text-zinc-400 hover:text-red-500 transition-colors cursor-pointer"
+                    title="Close Menu"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Nav selections items */}
+                <nav className="space-y-1 text-xs">
+                  {navItems.map((item) => {
+                    const Icon = item.icon;
+                    const isSelected = currentPage === item.id;
+                    
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          playClickChime();
+                          setCurrentPage(item.id as any);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg border transition-all cursor-pointer ${
+                          isSelected
+                            ? isDark
+                              ? 'bg-sky-500/10 border-sky-500/30 text-sky-400 font-bold'
+                              : 'bg-indigo-50 border-indigo-100 text-indigo-700 font-bold'
+                            : isDark
+                              ? 'bg-transparent border-transparent text-zinc-500 hover:text-zinc-200 hover:bg-[#161F38]'
+                              : 'bg-transparent border-transparent text-slate-500 hover:text-slate-850 hover:bg-slate-100/95'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon className="w-4 h-4" />
+                          <span className="font-semibold tracking-wide text-xs">{item.label}</span>
+                        </div>
+
+                        {item.badge && (
+                          <span className={`text-[8px] font-black tracking-wider uppercase px-2 py-0.5 rounded border ${
+                            item.badge === 'Pro' 
+                              ? 'bg-amber-950/25 border-amber-900 text-[#C8962E]' 
+                              : 'bg-emerald-950/25 border-emerald-950 text-emerald-500'
+                          }`}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              {/* Profile Card and switch user / log out */}
+              <div className="border-t border-zinc-500/10 pt-4 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  <StudentAvatar 
+                    avatar={profile.avatar} 
+                    name={profile.name} 
+                    size={32} 
+                    className="border border-[#C8962E]/30 shrink-0" 
+                  />
+                  <div className="overflow-hidden">
+                    <p className={`font-semibold truncate max-w-[120px] ${isDark ? 'text-zinc-200' : 'text-slate-800'}`}>{profile.name}</p>
+                    <p className="text-[9px] text-zinc-400 truncate max-w-[120px]">{profile.university}</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    playClickChime();
+                    localStorage.removeItem('ethiolearn_active_email');
+                    setProfile(null);
+                    setIsMobileMenuOpen(false);
+                    showToast("Logged out of EthioLearn Pro successfully.");
+                  }}
+                  title="Switch User Log"
+                  className={`p-2 hover:bg-[#BE1931]/10 border hover:border-[#BE1931]/30 hover:text-[#BE1931] rounded-lg transition-colors cursor-pointer ${
+                    isDark ? 'bg-zinc-950 border-zinc-900 text-zinc-400' : 'bg-slate-50 border-slate-200 text-slate-500'
+                  }`}
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
@@ -832,10 +1327,10 @@ export default function App() {
       </aside>
 
       {/* Main layout contents stage wrapper */}
-      <main className={`flex-1 p-5 md:p-8 flex flex-col min-h-0 ${
+      <main className={`flex-1 p-4 md:p-8 flex flex-col min-h-0 ${
         currentPage === 'tutor'
-          ? 'h-[calc(100vh-76px)] md:h-screen md:max-h-screen overflow-hidden'
-          : 'overflow-y-auto max-h-[85vh] md:max-h-screen'
+          ? 'h-[calc(100vh-72px)] md:h-screen md:max-h-screen overflow-hidden p-3 md:p-8'
+          : 'md:overflow-y-auto md:max-h-screen'
       }`}>
         
         {/* Top Header Widget: Calendar and Premium Toolbar Controls */}
@@ -964,32 +1459,101 @@ export default function App() {
 
                 </div>
 
-                {/* Subject progress grids meters */}
-                <div className="bg-[#161616] p-5 rounded-xl border border-[#2A2A2A] space-y-4 shadow-md">
-                  <div>
-                    <h3 className="font-serif text-[#F0EDE8] text-sm font-bold">Your Subjects Curriculum Progression</h3>
-                    <p className="text-[11px] text-zinc-500">Curriculums percentages mapped from flashcard levels, test results and study completions.</p>
+                 {/* Subject progress grids meters and Alarms hub */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Curriculum Progression takes 2 cols */}
+                  <div className="lg:col-span-2 bg-[#161616] p-5 rounded-xl border border-[#2A2A2A] space-y-4 shadow-md">
+                    <div>
+                      <h3 className="font-serif text-[#F0EDE8] text-sm font-bold">Your Subjects Curriculum Progression</h3>
+                      <p className="text-[11px] text-zinc-500">Curriculums percentages mapped from flashcard levels, test results and study completions.</p>
+                    </div>
+
+                    <div className="space-y-3.5">
+                      {profile.subjects.map((sub, idx) => {
+                        const seedProgress = 40 + (idx * 12) % 55; // sample progress tracker
+                        let colorClass = 'bg-[#C8962E]';
+                        if (sub.includes('Biology')) colorClass = 'bg-[#1A7A3C]';
+                        if (sub.includes('Civic')) colorClass = 'bg-[#BE1931]';
+
+                        return (
+                          <div key={sub} className="space-y-1.5 text-xs">
+                            <div className="flex justify-between text-zinc-400">
+                              <span className="font-semibold">{sub}</span>
+                              <span className="font-mono font-bold text-zinc-300">{seedProgress}% Mastery</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-[#0D0D0D] rounded-full overflow-hidden">
+                              <div className={`${colorClass} h-full rounded-full`} style={{ width: `${seedProgress}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  <div className="space-y-3.5">
-                    {profile.subjects.map((sub, idx) => {
-                      const seedProgress = 40 + (idx * 12) % 55; // sample progress tracker
-                      let colorClass = 'bg-[#C8962E]';
-                      if (sub.includes('Biology')) colorClass = 'bg-[#1A7A3C]';
-                      if (sub.includes('Civic')) colorClass = 'bg-[#BE1931]';
+                  {/* ⏰ Quick Remind Me Monitor Widget takes 1 col */}
+                  <div className="bg-[#161616] p-5 rounded-xl border border-[#2A2A2A] space-y-3.5 shadow-md flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-serif text-[#F0EDE8] text-sm font-bold flex items-center gap-1.5">
+                          <Clock className="w-4.5 h-4.5 text-[#C8962E]" /> Study Alarms
+                        </h3>
+                        <span className="text-[9px] bg-[#C8962E]/10 border border-[#C8962E]/25 text-[#C8962E] py-0.5 px-2.5 rounded-full font-mono font-bold uppercase animate-pulse select-none">
+                          Active
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-zinc-500 leading-normal">
+                        Avoid missed goals. Schedule alarms in Settings, and we will ring you.
+                      </p>
+                    </div>
 
-                      return (
-                        <div key={sub} className="space-y-1.5 text-xs">
-                          <div className="flex justify-between text-zinc-400">
-                            <span className="font-semibold">{sub}</span>
-                            <span className="font-mono font-bold text-zinc-300">{seedProgress}% Mastery</span>
+                    {/* Compact reminder viewer */}
+                    <div className="space-y-2 max-h-32 overflow-y-auto bg-[#0D0D0D] p-2.5 rounded-lg border border-zinc-900 pr-1">
+                      {reminders.length === 0 ? (
+                        <p className="text-zinc-550 italic text-[10px] text-center py-2 leading-snug">No active alarms set. Go to settings to form daily study goals!</p>
+                      ) : (
+                        reminders.slice(0, 3).map((r) => (
+                          <div key={r.id} className="flex justify-between items-center bg-[#121212] p-1.5 px-2.5 rounded border border-[#222]">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-[#C8962E] font-mono text-[10px] font-black bg-[#C8962E]/10 px-1.5 py-0.5 rounded leading-none select-none">
+                                {r.time}
+                              </span>
+                              <span className="text-zinc-350 font-bold text-[11px] truncate">{r.label}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                handleToggleReminder(r.id);
+                              }}
+                              className={`w-6.5 h-3.5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${r.enabled ? 'bg-[#1A7A3C]' : 'bg-zinc-800'}`}
+                            >
+                              <div className={`w-2.5 h-2.5 bg-white rounded-full transition-transform ${r.enabled ? 'translate-x-3' : 'translate-x-0'}`} />
+                            </button>
                           </div>
-                          <div className="w-full h-1.5 bg-[#0D0D0D] rounded-full overflow-hidden">
-                            <div className={`${colorClass} h-full rounded-full`} style={{ width: `${seedProgress}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
+                        ))
+                      )}
+                      {reminders.length > 3 && (
+                        <button 
+                          onClick={() => { playClickChime(); setCurrentPage('settings'); }}
+                          className="w-full text-center text-[10px] text-[#C8962E] hover:underline pt-1.5 block font-bold leading-none cursor-pointer"
+                        >
+                          View all {reminders.length} alarms in Settings ➜
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Quick setting button triggers creation popup or setting view */}
+                    <div className="pt-1 select-none">
+                      <button
+                        onClick={() => {
+                          playClickChime();
+                          setCurrentPage('settings');
+                          showToast("Setup additional Alarms and System Push parameters here!");
+                        }}
+                        className="w-full py-2 bg-zinc-900 hover:bg-[#C8962E]/5 border border-[#C8962E]/10 hover:border-[#C8962E]/35 text-xs text-[#C8962E] font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Bell className="w-3.5 h-3.5 text-[#C8962E]" />
+                        <span>Manage Alarms</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1011,7 +1575,12 @@ export default function App() {
 
             {/* 🤖 AI TUTOR VIEW */}
             {currentPage === 'tutor' && (
-              <AITutor apiKey={profile.claudeApiKey} enrolledSubjects={profile.subjects} />
+              <AITutor 
+                apiKey={profile.claudeApiKey} 
+                enrolledSubjects={profile.subjects} 
+                decksState={decksState}
+                onSaveDecksState={handleSaveDecksState}
+              />
             )}
 
             {/* 🃏 FLASHCARDS DECK VIEW */}
@@ -1039,6 +1608,8 @@ export default function App() {
                 googleToken={googleToken}
                 onGoogleSignIn={handleGoogleSignIn}
                 onGoogleSignOut={handleGoogleSignOut}
+                decksState={decksState}
+                onSaveDecksState={handleSaveDecksState}
               />
             )}
 
@@ -1054,6 +1625,11 @@ export default function App() {
                 onSyncStatsToSheets={handleSyncStatsToSheets}
                 theme={theme}
               />
+            )}
+
+            {/* 🎵 STUDY FOCUS MIND RELAX VIEW */}
+            {currentPage === 'mindlax' && (
+              <MindRelax />
             )}
 
             {/* ⚙️ SETTINGS CONFIGURATION */}
@@ -1164,40 +1740,237 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Progressive App Caching & Offline Local Backups */}
-                  <div className="space-y-1.5 p-3.5 bg-[#0D0D0D] rounded-xl border border-dashed border-[#1A7A3C]/40">
-                    <label className="text-[#1A7A3C] font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                      <WifiOff className="w-4 h-4" /> Progressive App Caching & Offline Download
-                    </label>
-                    <p className="text-[11px] text-zinc-400 pl-0.5 leading-normal">
-                      EthioLearn Pro leverages dynamic Service Worker caching to run fully offline. You can also export a standalone, portable HTML Study Companion containing your exact notes, student profile photo, and active memory flashcards.
+                  {/* Progressive App Caching, Native Installation, and Google Play Store APK Instructions */}
+                  <div className="space-y-4 p-4 bg-[#0D0D0D] rounded-xl border border-dashed border-[#1A7A3C]/40">
+                    
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <label className="text-[#4ADE80] font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                        <WifiOff className="w-4 h-4" /> Progressive Web App (PWA) Suite
+                      </label>
+                      <span className="bg-emerald-950/40 border border-emerald-500/20 text-emerald-400 text-[9px] font-mono font-bold px-2 py-0.5 rounded-full uppercase">
+                        Android/iOS Ready
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                      EthioLearn Pro is configured as a fully compliant, production-grade **Progressive Web App (PWA)** with a registered Service Worker for asset caching, custom offline capabilities, and high-resolution maskable launcher assets.
                     </p>
 
-                    <div className="flex items-center gap-2.5 bg-[#121212] p-2.5 rounded-lg border border-zinc-900 mb-2">
+                    {/* Network Live Connection Meter */}
+                    <div className="flex items-center gap-2.5 bg-[#121212] p-2.5 rounded-lg border border-zinc-900">
                       <div className="relative flex h-3 w-3">
                         <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isOffline ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
                         <span className={`relative inline-flex rounded-full h-3 w-3 ${isOffline ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
                       </div>
                       <div className="text-[11px]">
                         <span className="font-semibold text-zinc-200 block">
-                          {isOffline ? 'OFFLINE SATELLITE ACTIVE' : 'SECURE SERVICE WORKER ONLINE'}
+                          {isOffline ? 'OFFLINE SATELLITE ENGINE ACTIVE' : 'SECURE SERVICE WORKER CACHE ONLINE'}
                         </span>
-                        <span className="text-zinc-500 block leading-normal">
+                        <span className="text-zinc-500 block leading-normal font-sans">
                           {isOffline 
-                            ? 'Operating offline. Core notes, flashcards, and test preps remain active.' 
-                            : 'All core assets, custom components, and themes are fully precached.'
+                            ? 'Operating beautifully offline. Core notes, flashcards, test simulations, and classical soundscapes are fully cached.' 
+                            : 'All core layouts, scripts, ambient synthesizers, and Ethiopia study manifests are pre-cached for instant loading.'
                           }
                         </span>
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleDownloadOfflineCompanion}
-                      className="w-full py-2.5 bg-[#1B6F42]/10 hover:bg-[#1B6F42]/20 border border-[#1B6F42]/40 text-[#4ADE80] font-bold rounded-lg text-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
-                    >
-                      <span>📥</span> Download Portable Offline Campus (.html)
-                    </button>
+                    {/* Quick Native Installation Bar */}
+                    <div className="bg-[#151515] p-3 rounded-xl border border-zinc-900 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] uppercase font-black text-zinc-400 tracking-wide">
+                          📱 Native Device Installation
+                        </span>
+                        <span className="bg-purple-950/30 text-purple-400 border border-purple-500/20 text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">
+                          Standalone Shell
+                        </span>
+                      </div>
+
+                      {isInstallable ? (
+                        <button
+                          type="button"
+                          onClick={triggerPWAInstall}
+                          className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-[#1A7A3C] hover:opacity-90 text-white font-extrabold rounded-lg text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md shadow-emerald-950/20"
+                        >
+                          📥 Install EthioLearn on Home Screen
+                        </button>
+                      ) : (
+                        <div className="p-2.5 bg-zinc-900/40 rounded-lg text-[10.5px] text-zinc-400 border border-zinc-900/60 leading-relaxed font-sans">
+                          ✨ **Ready to Install:** Simply tap <span className="text-white font-bold">"Add to Home Screen"</span> or click the install icon in your browser's address bar to install this app as a standalone lightweight native app on Android, iOS, or Desktop.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Portable Companion Export */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wide block">Portable Companion</span>
+                      <button
+                        type="button"
+                        onClick={handleDownloadOfflineCompanion}
+                        className="w-full py-2 bg-[#1B6F42]/10 hover:bg-[#1B6F42]/20 border border-[#1B6F42]/30 text-[#4ADE80] font-bold rounded-lg text-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
+                      >
+                        📥 Download Portable Offline Campus File (.html)
+                      </button>
+                    </div>
+
+                    {/* Google Play Store Conversion Guide Checklist */}
+                    <div className="p-3 bg-zinc-900/20 border border-[#222] rounded-xl space-y-2 text-xs font-sans">
+                      <div className="flex items-center gap-1 text-[11px] text-[#C8962E] font-extrabold uppercase tracking-wider">
+                        <span>🚀</span> PLAY STORE PUBLISHING GUIDE (PWA to APK)
+                      </div>
+                      
+                      <p className="text-[10.5px] text-zinc-400 leading-relaxed">
+                        To publish this app on the **Google Play Store** or generate an installable <strong>Android .APK file</strong> without using complex build files, use **PWABuilder** (Google's official recommended PWA wrapper):
+                      </p>
+
+                      <ol className="list-decimal list-inside space-y-1 text-[10px] text-zinc-400 border-t border-[#222] pt-2 block pl-0.5">
+                        <li className="leading-snug">
+                          Copy your live web application URL:<br/>
+                          <code className="text-[#C8962E] select-all break-all font-mono">https://ais-pre-tl2qjbl3mf3wzgihvfexfg-14765837278.europe-west2.run.app</code>
+                        </li>
+                        <li className="leading-snug">
+                          Go to <a href="https://www.pwabuilder.com" target="_blank" rel="noopener noreferrer" className="text-blue-400 font-bold hover:underline">PWABuilder.com</a> and paste the application URL.
+                        </li>
+                        <li className="leading-snug">
+                          Click **"Test"** &mdash; PWABuilder scans our active manifest and Service Worker, verifying standard <strong>100/100 PWA score</strong> configuration.
+                        </li>
+                        <li className="leading-snug">
+                          Click **"Package for Store"** and choose the **Google Play / Android** option.
+                        </li>
+                        <li className="text-[#4ADE80] font-sans font-bold leading-snug">
+                          Download your unsigned APK or signed **.AAB (Android App Bundle)** immediately! The bundle is 100% compliant and ready to upload straight onto the Google Play Console.
+                        </li>
+                      </ol>
+
+                      <div className="p-2 bg-[#151515] rounded border border-zinc-900 text-[9px] text-zinc-500 leading-normal font-sans">
+                        💡 **Digital Asset Links:** When packaging, PWABuilder provides an <code className="text-zinc-400">assetlinks.json</code> signature. Simply paste it in your developer console to remove the browser address bar inside your custom Play Store app!
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* ⏰ Study Reminders & Daily Alarm Scheduler */}
+                  <div className="space-y-4 p-4 bg-[#0D0D0D] rounded-xl border border-dashed border-[#C8962E]/35 text-xs shadow-inner">
+                    <div className="flex justify-between items-center flex-wrap gap-3">
+                      <div className="space-y-0.5 max-w-md">
+                        <label className="text-[#C8962E] font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5 font-sans">
+                          <Bell className="w-4 h-4" /> Study Reminders & Daily Alarms
+                        </label>
+                        <p className="text-[11px] text-zinc-400 leading-normal">
+                          Set automatic alarm triggers to study at a specific time of day. Receive background push-notifications or loud in-app Study Bell alerts.
+                        </p>
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={requestNotificationPermission}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase cursor-pointer transition-colors border shadow ${
+                          notificationPermission === 'granted'
+                            ? 'bg-emerald-950/20 border-emerald-500/20 text-emerald-400'
+                            : notificationPermission === 'denied'
+                            ? 'bg-rose-950/20 border-rose-500/20 text-rose-400'
+                            : 'bg-zinc-900 border-zinc-800 text-[#C8962E] hover:bg-zinc-800'
+                        }`}
+                        title="Request Native Push Permissions"
+                      >
+                        {notificationPermission === 'granted' 
+                          ? '🔔 Push: Connected' 
+                          : notificationPermission === 'denied' 
+                          ? '🔕 Push: Blocked' 
+                          : '🔔 Request Push Permission'
+                        }
+                      </button>
+                    </div>
+
+                    {/* Alarm set editor tool */}
+                    <div className="bg-[#121212] p-3.5 rounded-xl border border-zinc-900 flex gap-2.5 flex-wrap items-end">
+                      <div className="flex-1 min-w-[140px] space-y-1">
+                        <span className="text-[10px] text-zinc-500 uppercase font-black tracking-wider pl-0.5">Study Task Goal</span>
+                        <input
+                          type="text"
+                          required
+                          value={newReminderLabel}
+                          onChange={(e) => setNewReminderLabel(e.target.value)}
+                          placeholder="e.g. Spaced Repetition Biology Practice"
+                          className="w-full bg-[#161616] border border-[#2A2A2A] rounded-lg p-2.5 text-zinc-300 outline-none text-xs focus:border-[#C8962E]"
+                        />
+                      </div>
+                      <div className="w-28 space-y-1">
+                        <span className="text-[10px] text-zinc-500 uppercase font-black tracking-wider pl-0.5">Alert Time (24h)</span>
+                        <input
+                          type="time"
+                          required
+                          value={newReminderTime}
+                          onChange={(e) => setNewReminderTime(e.target.value)}
+                          className="w-full bg-[#161616] border border-[#2A2A2A] rounded-lg p-2 text-[#C8962E] font-mono font-bold text-center outline-none focus:border-[#C8962E]"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAddReminder()}
+                        className="p-2.5 px-4.5 bg-[#C8962E] hover:bg-[#C8962E]/90 text-black font-black uppercase rounded-lg text-[10px] tracking-wider transition-all h-[38px] cursor-pointer inline-flex items-center justify-center"
+                      >
+                        Add Reminder
+                      </button>
+                    </div>
+
+                    {/* Configured study reminder rows */}
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {reminders.length === 0 ? (
+                        <p className="text-zinc-500 italic text-center p-3">No study reminders configured yet. Add some to build daily streaks!</p>
+                      ) : (
+                        reminders.map((r) => (
+                          <div 
+                            key={r.id} 
+                            className={`flex justify-between items-center p-2 px-3.5 rounded-xl border transition-colors ${
+                              r.enabled ? 'bg-zinc-950/80 border-zinc-800' : 'bg-zinc-950/30 border-zinc-900/60 opacity-60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="text-emerald-400 font-mono font-black text-xs bg-emerald-950/20 p-1 px-2.5 rounded-lg border border-emerald-900/20 select-none">
+                                {r.time}
+                              </span>
+                              <div className="min-w-0">
+                                <span className="font-bold text-zinc-200 block truncate text-xs">{r.label}</span>
+                                <span className="text-[9px] text-zinc-500 font-mono tracking-wide">RECURRENCE: DAILY PROTOCOL</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 select-none">
+                              {/* Alarm sound testing chime */}
+                              <button
+                                type="button"
+                                onClick={() => handleTestReminder(r.id)}
+                                title="Run Alarm Synthesizer Chime Sound Test"
+                                className="p-1 px-2.5 rounded-lg hover:bg-zinc-900 text-[#C8962E] text-[10px] font-extrabold flex items-center gap-1 transition-all border border-[#C8962E]/10 hover:border-[#C8962E]/40 cursor-pointer"
+                              >
+                                🔊 Test Bell
+                              </button>
+
+                              {/* Toggle active switch */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleReminder(r.id)}
+                                className={`w-8 h-4.5 rounded-full p-0.5 transition-colors cursor-pointer ${r.enabled ? 'bg-[#1A7A3C]' : 'bg-zinc-800'}`}
+                              >
+                                <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${r.enabled ? 'translate-x-3.5' : 'translate-x-0'}`} />
+                              </button>
+
+                              {/* Delete control */}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteReminder(r.id)}
+                                className="p-1.5 text-zinc-500 hover:text-red-550 rounded-lg hover:bg-zinc-900 transition-colors cursor-pointer"
+                                title="Remove Study Reminder"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
 
                   {/* Danger zones reset options */}
