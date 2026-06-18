@@ -81,10 +81,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
           setRegisteredAccounts(parsed);
-          // If accounts exist, default directly to 'signin' instead of splash to simplify reentry
-          if (parsed.length > 0) {
-            setMode('signin');
-          }
+          // Keep default mode as "splash" to allow immediate one-touch quick start
         }
       }
     } catch (e) {}
@@ -233,6 +230,29 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     onComplete(profile);
   };
 
+  const handleGuestQuickStart = () => {
+    playSuccessChime();
+    const guestProfile: StudentProfile = {
+      name: "Ethiopian Scholar",
+      email: "scholar.guest@ethiolearn.com",
+      university: "Addis Ababa University",
+      year: "1st Year",
+      subjects: [
+        "Emerging Technologies",
+        "Introduction to Economics",
+        "General Biology",
+        "Communicative English",
+        "Moral and Civic Education"
+      ],
+      claudeApiKey: "",
+      dailyGoalHours: 2,
+      theme: 'dark',
+      language: 'both',
+      avatar: 'champion'
+    };
+    onComplete(guestProfile);
+  };
+
   const toggleSubject = (subject: string) => {
     if (selectedSubjects.includes(subject)) {
       if (selectedSubjects.length > 1) {
@@ -299,8 +319,8 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         />
 
         {/* Traditional Geometric Habesha Bands with modern neon-wireframe style */}
-        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#C8962E]/30 to-transparent" />
-        <div className="absolute bottom-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-emerald-500/25 to-transparent" />
+        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-emerald-500 via-[#C8962E] to-red-500 opacity-60" />
+        <div className="absolute bottom-0 inset-x-0 h-[2px] bg-gradient-to-r from-emerald-500 via-[#C8962E] to-red-500 opacity-60" />
       </div>
 
       <AnimatePresence mode="wait">
@@ -313,53 +333,305 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, y: -24, scale: 0.96 }}
             transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-            className="text-center max-w-lg flex flex-col items-center relative z-10 w-full my-auto"
+            className="text-center max-w-lg flex flex-col items-center relative z-10 w-full my-auto px-4"
           >
-            <div className="relative w-56 h-56 mb-8 flex items-center justify-center">
-              
-              {/* Outer Counter-Rotating Segmented Ring */}
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 42, ease: "linear" }}
-                className="absolute inset-0 rounded-full border border-dashed border-[#C8962E]/10"
-              />
-              {/* Inner Fast Drifting Compass Segment */}
-              <motion.div
-                animate={{ rotate: -360 }}
-                transition={{ repeat: Infinity, duration: 24, ease: "linear" }}
-                className="absolute inset-4 rounded-full border border-dashed border-emerald-500/15"
-              />
-
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 18, ease: "linear" }}
-                className="absolute inset-2 flex items-start justify-center"
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-[#C8962E] shadow-[0_0_10px_2px_#C8962E]" />
-              </motion.div>
-              
-              <motion.div 
-                animate={{
-                  scale: [0.92, 1.08, 0.92],
-                  opacity: [0.15, 0.3, 0.15]
-                }}
-                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute inset-10 rounded-full bg-gradient-to-br from-[#C8962E] via-red-600 to-emerald-500 blur-2xl opacity-20"
-              />
-
-              <motion.div
-                whileHover={{ scale: 1.08 }}
-                className="relative z-10 p-4 rounded-3xl bg-black/40 border border-white/5 backdrop-blur-md shadow-2xl"
-              >
-                <EthioLearnLogo size={120} showCardBackground={false} />
-              </motion.div>
+            {/* Elegant Habesha Welcome Banner */}
+            <div className="mb-2">
+              <span className="inline-block px-4 py-1.5 rounded-full text-xs font-bold tracking-widest text-amber-200 bg-gradient-to-r from-emerald-950/40 via-amber-950/40 to-red-950/40 border border-[#C8962E]/30 backdrop-blur-md uppercase font-serif animate-pulse">
+                እንኳን በደህና መጡ!
+              </span>
             </div>
 
-            <div className="space-y-3 mb-10">
-              <h1 className="font-serif text-4xl md:text-5xl font-black text-[#C8962E] tracking-normal" style={{ textShadow: "0 0 20px rgba(200, 150, 46, 0.22)" }}>
+            {/* Traditional 'Tibeb' styled geometric woven pattern strip */}
+            <div className="w-full max-w-xs flex h-2.5 overflow-hidden rounded-full my-4 border border-zinc-800 shadow-inner select-none bg-zinc-900">
+              {Array.from({ length: 16 }).map((_, i) => {
+                const colors = ["bg-emerald-600", "bg-[#C8962E]", "bg-red-600"];
+                return (
+                  <div 
+                    key={i} 
+                    className={`flex-1 h-full ${colors[i % 3]} transform skew-x-12 mx-[1px]`} 
+                  />
+                );
+              })}
+            </div>
+
+            <div className="relative w-full max-w-[320px] aspect-[4/3] mb-6 flex items-center justify-center select-none">
+              {/* Vibrant Ambient Backglow representing Ethiopian National Flag Colors */}
+              <div className="absolute inset-4 rounded-full bg-gradient-to-tr from-emerald-600 via-[#C8962E] to-red-600 blur-[36px] opacity-35 animate-pulse" />
+
+              {/* Glassmorphic Rounded Display Shield */}
+              <div className="absolute inset-0 rounded-3xl bg-black/40 border border-zinc-800 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col items-center justify-center px-4 py-3">
+                
+                {/* SVG Moving Illustration Container */}
+                <svg viewBox="0 0 400 300" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    {/* Glowing Sun Gradient */}
+                    <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#C8962E" stopOpacity="0.4" />
+                      <stop offset="60%" stopColor="#C8962E" stopOpacity="0.1" />
+                      <stop offset="100%" stopColor="#C8962E" stopOpacity="0" />
+                    </radialGradient>
+                    
+                    {/* Ethiopian Traditional Netela Borders (Green - Yellow - Red) */}
+                    <linearGradient id="habeshaTrim" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#10B981" /> {/* Green */}
+                      <stop offset="50%" stopColor="#F59E0B" /> {/* Yellow */}
+                      <stop offset="100%" stopColor="#EF4444" /> {/* Red */}
+                    </linearGradient>
+
+                    {/* Book Glow Effect */}
+                    <radialGradient id="bookLight" cx="50%" cy="80%" r="50%">
+                      <stop offset="0%" stopColor="#FCD34D" stopOpacity="0.6" />
+                      <stop offset="100%" stopColor="#FCD34D" stopOpacity="0" />
+                    </radialGradient>
+                  </defs>
+
+                  {/* 1. Golden Traditional Sunrise of Knowledge (Rotating segments in back) */}
+                  <g transform="translate(200, 150)">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <line
+                        key={i}
+                        x1="0"
+                        y1="0"
+                        x2={120 * Math.cos((i * 30 * Math.PI) / 180)}
+                        y2={120 * Math.sin((i * 30 * Math.PI) / 180)}
+                        stroke="#C8962E"
+                        strokeWidth="1.5"
+                        strokeOpacity="0.15"
+                        strokeDasharray="4,8"
+                      />
+                    ))}
+                    <circle cx="0" cy="0" r="50" fill="url(#sunGlow)" />
+                  </g>
+
+                  {/* 2. Students silhouettes (Left: Boy Student, Right: Girl Student) */}
+                  {/* Left Student: Boy in Traditional White Gabi/Netela */}
+                  <g transform="translate(110, 140)">
+                    {/* Subtle Breathing Motion */}
+                    <animateTransform
+                      attributeName="transform"
+                      type="translate"
+                      values="110,140; 110,137; 110,140"
+                      dur="4s"
+                      repeatCount="indefinite"
+                      additive="sum"
+                    />
+                    
+                    {/* Hair */}
+                    <path d="M 10,-35 C -15,-35 -15,-60 10,-60 C 35,-60 35,-35 10,-35 Z" fill="#18181B" />
+                    <circle cx="-2" cy="-48" r="8" fill="#18181B" />
+                    <circle cx="22" cy="-48" r="8" fill="#18181B" />
+                    <circle cx="10" cy="-56" r="10" fill="#18181B" />
+
+                    {/* Left Kid Head and smiling face */}
+                    <circle cx="10" cy="-35" r="18" fill="#5C4233" />
+                    {/* Eyes */}
+                    <circle cx="4" cy="-37" r="1.8" fill="#FFFFFF" />
+                    <circle cx="4" cy="-37" r="0.8" fill="#000" />
+                    <circle cx="14" cy="-37" r="1.8" fill="#FFFFFF" />
+                    <circle cx="14" cy="-37" r="0.8" fill="#000" />
+                    {/* Smile */}
+                    <path d="M 4,-26 Q 9,-22 14,-26" stroke="#FFFFFF" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+
+                    {/* Ears */}
+                    <circle cx="-9" cy="-35" r="4" fill="#5C4233" />
+                    <circle cx="29" cy="-35" r="4" fill="#5C4233" />
+
+                    {/* Neck */}
+                    <rect x="6" y="-18" width="8" height="12" fill="#5C4233" />
+
+                    {/* Traditional Shamma / Netela (Garment shoulders) */}
+                    <path d="M -25,45 C -25,10 -15,0 10,0 C 35,0 45,10 45,45 Z" fill="#F4F4F5" />
+                    
+                    {/* Traditional Woven Border (Green-Yellow-Red strip on clothing) */}
+                    <path d="M -21,28 C -7,16 11,16 41,28" stroke="url(#habeshaTrim)" strokeWidth="5.5" fill="none" strokeLinecap="round" />
+                    
+                    {/* Holding Hand */}
+                    <circle cx="35" cy="42" r="6" fill="#5C4233" />
+                  </g>
+
+                  {/* Right Student: Girl with braids in traditional white dress with Netela wrap */}
+                  <g transform="translate(290, 140)">
+                    {/* Anti-phase Breathing Motion */}
+                    <animateTransform
+                      attributeName="transform"
+                      type="translate"
+                      values="290,137; 290,140; 290,137"
+                      dur="4s"
+                      repeatCount="indefinite"
+                      additive="sum"
+                    />
+                    
+                    {/* Braids / Traditional Hair */}
+                    <path d="M -10,-35 C -35,-35 -35,-60 -10,-60 C 15,-60 15,-35 -10,-35 Z" fill="#18181B" />
+                    {/* Drooping Braids on sides */}
+                    <path d="M -26,-40 Q -33,-20 -28,-3" stroke="#18181B" strokeWidth="4.5" fill="none" strokeLinecap="round" />
+                    <path d="M 6,-40 Q 13,-20 8,-3" stroke="#18181B" strokeWidth="4.5" fill="none" strokeLinecap="round" />
+                    
+                    {/* Red hair ties at the end */}
+                    <circle cx="-28" cy="-3" r="3" fill="#EF4444" />
+                    <circle cx="8" cy="-3" r="3" fill="#EF4444" />
+
+                    {/* Kid Head and smiling face */}
+                    <circle cx="-10" cy="-35" r="18" fill="#6B4E3D" />
+                    {/* Eyes */}
+                    <circle cx="-16" cy="-37" r="1.8" fill="#FFFFFF" />
+                    <circle cx="-16" cy="-37" r="0.8" fill="#000" />
+                    <circle cx="-6" cy="-37" r="1.8" fill="#FFFFFF" />
+                    <circle cx="-6" cy="-37" r="0.8" fill="#000" />
+                    {/* Smile */}
+                    <path d="M -16,-26 Q -11,-22 -6,-26" stroke="#FFFFFF" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+
+                    {/* Ears */}
+                    <circle cx="-29" cy="-35" r="4" fill="#6B4E3D" />
+                    <circle cx="9" cy="-35" r="4" fill="#6B4E3D" />
+
+                    {/* Neck */}
+                    <rect x="-14" y="-18" width="8" height="12" fill="#6B4E3D" />
+
+                    {/* Traditional Shamma / Dress shoulders */}
+                    <path d="M -45,45 C -45,10 -35,0 -10,0 C 15,0 25,10 25,45 Z" fill="#F4F4F5" />
+                    
+                    {/* Traditional Woven Border (Green-Yellow-Red strip on shoulders) */}
+                    <path d="M -41,28 C -11,16 7,16 21,28" stroke="url(#habeshaTrim)" strokeWidth="5.5" fill="none" strokeLinecap="round" />
+
+                    {/* Holding Hand */}
+                    <circle cx="-35" cy="42" r="6" fill="#6B4E3D" />
+                  </g>
+
+                  {/* 3. Central Open Glowing Study Book */}
+                  <g transform="translate(145, 175)">
+                    {/* Soft ambient book light beam upward */}
+                    <polygon points="10,-60 145,-60 115,10 40,10" fill="url(#bookLight)" />
+
+                    {/* Beautiful traditional wooden or golden book stand */}
+                    <path d="M 5,28 L 30,12 L 125,12 L 150,28 Z" fill="#5F3F19" stroke="#78350F" strokeWidth="2" />
+                    <path d="M 30,12 L 77,40 L 125,12" stroke="#451A03" strokeWidth="3" fill="none" />
+
+                    {/* Animated Golden pages */}
+                    <path d="M 15,15 Q 77,-5 77,15 Q 77,-5 139,15 L 129,-8 Q 77,-28 77,-8 Q 77,-28 25,-8 Z" fill="#FFFBEB" stroke="#C8962E" strokeWidth="1.5" />
+                    <line x1="77" y1="-8" x2="77" y2="15" stroke="#D97706" strokeWidth="1.5" />
+                    
+                    {/* Glowing Star Spark coming out of book */}
+                    <circle cx="77" cy="-22" r="2.5" fill="#FBBF24">
+                      <animate attributeName="r" values="1;3;1" dur="2s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.3;1;0.3" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                  </g>
+
+                  {/* 4. Drifting Floating Ge'ez Alphabets (ሀ, ለ, ሐ, መ) with random animation keyframes */}
+                  {/* HA (ሀ) */}
+                  <g transform="translate(80, 80)">
+                    <text x="0" y="0" fill="#C8962E" fontSize="24" fontFamily="serif" fontWeight="900" opacity="0.85">
+                      ሀ
+                      <animateTransform
+                        attributeName="transform"
+                        type="translate"
+                        values="0,0; -10,-20; 0,0"
+                        dur="6s"
+                        repeatCount="indefinite"
+                      />
+                      <animate attributeName="opacity" values="0.4;1;0.4" dur="6s" repeatCount="indefinite" />
+                    </text>
+                  </g>
+
+                  {/* LE (ለ) */}
+                  <g transform="translate(310, 80)">
+                    <text x="0" y="0" fill="#10B981" fontSize="22" fontFamily="serif" fontWeight="900" opacity="0.85">
+                      ለ
+                      <animateTransform
+                        attributeName="transform"
+                        type="translate"
+                        values="0,0; 12,-15; 0,0"
+                        dur="5s"
+                        repeatCount="indefinite"
+                      />
+                      <animate attributeName="opacity" values="0.3;0.9;0.3" dur="5s" repeatCount="indefinite" />
+                    </text>
+                  </g>
+
+                  {/* HAM (ሐ) */}
+                  <g transform="translate(130, 60)">
+                    <text x="0" y="0" fill="#EF4444" fontSize="20" fontFamily="serif" fontWeight="900" opacity="0.85">
+                      ሐ
+                      <animateTransform
+                        attributeName="transform"
+                        type="translate"
+                        values="0,0; 5,-25; 0,0"
+                        dur="7s"
+                        repeatCount="indefinite"
+                      />
+                      <animate attributeName="opacity" values="0.2;1;0.2" dur="7s" repeatCount="indefinite" />
+                    </text>
+                  </g>
+
+                  {/* MA (መ) */}
+                  <g transform="translate(250, 60)">
+                    <text x="0" y="0" fill="#FBBF24" fontSize="20" fontFamily="serif" fontWeight="900" opacity="0.85">
+                      መ
+                      <animateTransform
+                        attributeName="transform"
+                        type="translate"
+                        values="0,0; -8,-18; 0,0"
+                        dur="5.5s"
+                        repeatCount="indefinite"
+                      />
+                      <animate attributeName="opacity" values="0.4;0.95;0.4" dur="5.5s" repeatCount="indefinite" />
+                    </text>
+                  </g>
+
+                  {/* Floating sparks of wisdom (drifting up and around) */}
+                  {Array.from({ length: 6 }).map((_, idx) => {
+                    const startX = 130 + idx * 26;
+                    const delay = idx * 0.7;
+                    return (
+                      <circle
+                        key={idx}
+                        cx={startX}
+                        cy="160"
+                        r="2.5"
+                        fill="#F59E0B"
+                        opacity="0"
+                      >
+                        <animate
+                          attributeName="cy"
+                          values="160; 70"
+                          dur="4s"
+                          begin={`${delay}s`}
+                          repeatCount="indefinite"
+                        />
+                        <animate
+                          attributeName="cx"
+                          values={`${startX}; ${startX + (idx % 2 === 0 ? 15 : -15)}`}
+                          dur="4s"
+                          begin={`${delay}s`}
+                          repeatCount="indefinite"
+                        />
+                        <animate
+                          attributeName="opacity"
+                          values="0; 0.9; 0"
+                          dur="4s"
+                          begin={`${delay}s`}
+                          repeatCount="indefinite"
+                        />
+                      </circle>
+                    );
+                  })}
+                </svg>
+
+                {/* Floating Micro Label overlay */}
+                <div className="absolute bottom-2.5 px-3 py-0.5 rounded-full bg-zinc-950/80 border border-zinc-900 text-[10px] text-zinc-400 font-mono tracking-widest flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  <span>STUDY ROOM FRONTIER</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-8">
+              <h1 className="font-serif text-3xl md:text-4xl font-extrabold text-[#C8962E] tracking-normal" style={{ textShadow: "0 0 20px rgba(200, 150, 46, 0.25)" }}>
                 ኢትዮ ለርን ፕሮ
               </h1>
-              <h2 className="text-xl md:text-2xl font-serif font-semibold text-[#F0EDE8] tracking-widest uppercase">
+              <h2 className="text-lg md:text-xl font-serif font-semibold text-[#F0EDE8] tracking-widest uppercase">
                 EthioLearn Pro
               </h2>
 
@@ -370,28 +642,58 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </div>
 
               <div className="space-y-1">
-                <p className="text-xs font-semibold text-emerald-400 tracking-[0.25em] uppercase">
+                <p className="text-xs font-bold text-emerald-400 tracking-[0.25em] uppercase">
                   ተማር • አድግ • ብልጽግና
                 </p>
-                <p className="text-[#8A8480] text-[11px] font-mono tracking-widest uppercase">
+                <p className="text-[#A29A95] text-[10px] font-mono tracking-widest uppercase">
                   Learn. Grow. Prosper.
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm justify-center">
-              <button
-                onClick={() => { playClickChime(); setMode('signup'); }}
-                className="px-8 py-3.5 bg-gradient-to-r from-[#C8962E] to-amber-600 text-black font-extrabold text-xs tracking-wider uppercase rounded-xl cursor-pointer shadow-lg hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+            <div className="flex flex-col gap-3.5 w-full max-w-sm justify-center">
+              {/* Primary Pulsing Instant Quick Start Button */}
+              <motion.button
+                onClick={handleGuestQuickStart}
+                whileHover={{ scale: 1.025 }}
+                whileTap={{ scale: 0.985 }}
+                className="w-full py-3.5 bg-gradient-to-r from-emerald-500 via-[#C8962E] to-red-500 text-black font-extrabold text-xs tracking-widest uppercase rounded-2xl cursor-pointer shadow-[0_0_24px_rgba(200,150,46,0.3)] transition-all flex items-center justify-center gap-2 border border-amber-300/30 font-serif"
               >
-                <UserPlus className="w-4 h-4" /> Create Profile
-              </button>
-              <button
-                onClick={() => { playClickChime(); setMode('signin'); }}
-                className="px-8 py-3.5 bg-zinc-950 border border-zinc-800 text-zinc-300 font-extrabold text-xs tracking-wider uppercase rounded-xl cursor-pointer hover:border-zinc-700 hover:text-white transition-all flex items-center justify-center gap-2"
-              >
-                <LogIn className="w-4 h-4" /> Student Log In
-              </button>
+                <span className="relative flex h-2.5 w-2.5 mr-1">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                </span>
+                Quick Start (አሁን ጀምር)
+              </motion.button>
+
+              {/* Smaller clean row for alternative flows */}
+              <div className="flex items-center justify-center gap-6 mt-1">
+                <button
+                  onClick={() => { playClickChime(); setMode('signin'); }}
+                  className="text-[10px] text-zinc-400 hover:text-white font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <LogIn className="w-3 h-3 text-[#C8962E]" /> Student Sign In
+                </button>
+                <span className="text-zinc-800">|</span>
+                <button
+                  onClick={() => { playClickChime(); setMode('signup'); }}
+                  className="text-[10px] text-zinc-400 hover:text-white font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <UserPlus className="w-3 h-3 text-[#C8962E]" /> Custom Register
+                </button>
+              </div>
+
+              {/* Traditional Bottom Accents */}
+              <div className="w-full max-w-[140px] flex h-[2px] overflow-hidden rounded-full mt-4 mx-auto opacity-40 select-none">
+                <div className="flex-1 bg-emerald-600 h-full" />
+                <div className="flex-1 bg-[#C8962E] h-full" />
+                <div className="flex-1 bg-red-600 h-full" />
+              </div>
+
+              {/* Frictionless tagline */}
+              <p className="text-[9px] text-zinc-500 font-mono text-center tracking-normal mt-1 max-w-xs mx-auto">
+                Instant portal to your study notes, exam prep, and audio companion.
+              </p>
             </div>
           </motion.div>
         )}
