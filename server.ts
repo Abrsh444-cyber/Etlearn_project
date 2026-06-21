@@ -19,7 +19,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // API Route for Claude proxy redirected to OpenRouter or natively served via Google Gemini
-  app.post('/api/claude/chat', async (req, res) => {
+  app.post(['/api/claude/chat', '/api/claude/chat/'], async (req, res) => {
     try {
       const { messages, system, userApiKey, model } = req.body;
       
@@ -449,9 +449,9 @@ async function startServer() {
       }
 
       // Resolve a standard OpenRouter model ID matching 2026 active endpoints list
-      let openRouterModel = model || 'anthropic/claude-sonnet-4';
+      let openRouterModel = model || 'anthropic/claude-3.5-sonnet';
       if (openRouterModel.includes('claude-3-5-sonnet') || openRouterModel.includes('claude-3.5-sonnet') || openRouterModel.includes('claude-sonnet-latest')) {
-        openRouterModel = 'anthropic/claude-sonnet-4';
+        openRouterModel = 'anthropic/claude-3.5-sonnet';
       }
 
       // We make a direct POST to OpenRouter chat completions API
