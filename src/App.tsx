@@ -234,6 +234,25 @@ export default function App() {
     localStorage.setItem('ethiolearn_pro_streak', String(realStreak));
   }, []);
 
+  // Synchronize master API Key to the cloud container if available in active profile
+  useEffect(() => {
+    if (profile?.claudeApiKey) {
+      fetch('/api/sync-master-key', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ key: profile.claudeApiKey })
+      }).then(res => {
+        if (res.ok) {
+          console.log('[EthioLearn Client] Synced master API key to the active server successfully.');
+        }
+      }).catch(err => {
+        console.warn('[EthioLearn Client] Failed to register master key with backend:', err);
+      });
+    }
+  }, [profile?.claudeApiKey]);
+
   // Firebase auth sync
   useEffect(() => {
     const unsubscribe = initAuth(

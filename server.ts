@@ -42,6 +42,28 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+  // Endpoint to let admin sync their local API Key to the cloud container persistently
+  app.post('/api/sync-master-key', (req, res) => {
+    try {
+      const { key } = req.body;
+      if (isValidServiceKey(key)) {
+        if (key !== cachedMasterApiKey) {
+          cachedMasterApiKey = key;
+          try {
+            fs.writeFileSync(storeFilePath, key, 'utf8');
+            console.log('[EthioLearn Server] Master API key manually synced and cached.');
+          } catch (e) {
+            console.warn('[EthioLearn Server] Failed to save key file:', e);
+          }
+        }
+        return res.json({ success: true, message: 'Master API key synced successfully.' });
+      }
+      return res.status(400).json({ error: 'Invalid key format for master sync.' });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
   // API Route for Claude proxy redirected to OpenRouter or natively served via Google Gemini
   app.post(['/api/claude/chat', '/api/claude/chat/'], async (req, res) => {
     try {
