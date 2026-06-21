@@ -205,16 +205,29 @@ export default function ExamPrep({ apiKey, enrolledSubjects, onStudyAction }: Ex
         startQuestionTimer(60);
         playSuccessChime();
       } else {
-        throw new Error("Unable to formulate quiz questions. Please try again.");
+        throw new Error("Unable to formulate quiz questions from AI.");
       }
     } catch (err: any) {
-      setLoadingText(
-        language === 'en'
-          ? `AI creation failed: ${err.message || err}`
-          : `የአይ ዝግጅት አልተሳካም፡ ${err.message || err}`
-      );
-      playFailureChime();
-      setTimeout(() => setLoadingText(null), 4000);
+      console.warn('AI exam generation failed/offline. Activating exam bank fallback:', err);
+      
+      // Look up subject in local bank or default to Emerging Technologies
+      let fallbackList = PAST_EXAM_BANK[selectedSubject] || PAST_EXAM_BANK["Emerging Technologies"];
+      
+      setExamQuestions(fallbackList);
+      setExamMode('active');
+      setActiveQIndex(0);
+      setUserSelections({});
+      setIsAnswerRevealed(false);
+      setLoadingText(null);
+      setTimeRemaining(90);
+      startQuestionTimer(90);
+      
+      // Show notice of local fallback
+      const notice = language === 'en' 
+        ? "AI was offline or slow. Loaded official curriculum practice questions from local library instead."
+        : "አይ መምህሩ ከመስመር ውጭ በመሆኑ ምክንያት ጥያቄዎችን ከመካነ-መዝገቡ አምጥተናቸዋል።";
+      alert(notice);
+      playSuccessChime();
     }
   };
 

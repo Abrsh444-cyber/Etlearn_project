@@ -19,6 +19,85 @@ interface AITutorProps {
   onUpdateProfile: (updated: StudentProfile) => void;
 }
 
+const LOCAL_FALLBACK_QUIZ: { [subject: string]: any[] } = {
+  "Emerging Technologies": [
+    {
+      question: "Which of the following is the best definition of IoT (Internet of Things)?",
+      options: [
+        "A network of physical objects embedded with sensors and software to exchange data over the internet.",
+        "A search engine used for looking up academic textbook summaries online.",
+        "A type of security protocol for central bank transactions.",
+        "A private server cluster designed for hosting high-speed gaming systems."
+      ],
+      correctAnswer: "A network of physical objects embedded with sensors and software to exchange data over the internet.",
+      explanation: "IoT connects physical devices to collect, transmit, and act on local data automatically."
+    },
+    {
+      question: "What distinguishes Edge Computing from conventional cloud computing?",
+      options: [
+        "Data is processed at the network edge, closer to the source device.",
+        "It consumes infinitely more internet data bandwidth.",
+        "It replaces the need for any storage physical drives.",
+        "It strictly prevents any wireless connections for device security."
+      ],
+      correctAnswer: "Data is processed at the network edge, closer to the source device.",
+      explanation: "Edge computing keeps data processing close to the collection source, saving response time and bandwidth."
+    }
+  ],
+  "Introduction to Economics": [
+    {
+      question: "Which term describes the total monetary value of all finished goods and services produced within a country's borders in a specific period?",
+      options: [
+        "Gross Domestic Product (GDP)",
+        "Consumer Price Index (CPI)",
+        "Aggregate Inflation Scale",
+        "Giffen Marginal Utility"
+      ],
+      correctAnswer: "Gross Domestic Product (GDP)",
+      explanation: "GDP is the standard macro-economic metric used to measure the official production output of an economy."
+    }
+  ],
+  "General Biology": [
+    {
+      question: "What is the primary organic outcome of Photosynthesis in green plants?",
+      options: [
+        "Synthesis of glucose sugars and release of oxygen gas",
+        "Production of carbon dioxide and water molecules",
+        "Metabolism of lipid membranes in root tissues",
+        "Direct replication of nuclear chromatin structures"
+      ],
+      correctAnswer: "Synthesis of glucose sugars and release of oxygen gas",
+      explanation: "Chloroplasts capture sunlight to transform carbon dioxide and water into glucose and oxygen."
+    }
+  ],
+  "Communicative English": [
+    {
+      question: "Which option correctly uses reported speech for: 'The examination is tomorrow,' told the tutor.",
+      options: [
+        "The tutor said that the examination was the next day.",
+        "The tutor says the examination is tomorrow.",
+        "The tutor told me that tomorrow is exam day.",
+        "The tutor has been saying the examination was tomorrow."
+      ],
+      correctAnswer: "The tutor said that the examination was the next day.",
+      explanation: "'Is' shifts to 'was' in reported speech, and 'tomorrow' shifts to 'the next day'."
+    }
+  ],
+  "Moral and Civic Education": [
+    {
+      question: "Which of the following is core to the constitutional system and rule of law?",
+      options: [
+        "Respect for human and democratic rights and sovereignty of citizens",
+        "Unchecked authority of a centralized monarch",
+        "Exclusive priority of private corporate legal systems",
+        "Restricting public speech and citizen representation"
+      ],
+      correctAnswer: "Respect for human and democratic rights and sovereignty of citizens",
+      explanation: "Modern democratic constitutions ensure sovereignty belongs to the citizens, protected by rigorous checks and balances."
+    }
+  ]
+};
+
 export default function AITutor({ 
   apiKey, 
   enrolledSubjects, 
@@ -345,17 +424,26 @@ Always end your explanations with 2 conversational, helpful revision questions f
     try {
       const topic = quickChips[selectedSubject][0];
       const quiz = await generateQuizAI(topic, selectedSubject, apiKey);
-      setCurrentQuiz(quiz);
+      if (quiz && quiz.length > 0) {
+        setCurrentQuiz(quiz);
+        setGeneratingQuiz(false);
+        playSuccessChime();
+      } else {
+        throw new Error("Empty quiz response from AI");
+      }
+    } catch (err: any) {
+      console.warn("AI generation failed in AITutor, using offline fallback quiz:", err);
+      // Retrieve subject specific fallback quiz list or default
+      const fallbackList = LOCAL_FALLBACK_QUIZ[selectedSubject] || LOCAL_FALLBACK_QUIZ["Emerging Technologies"];
+      setCurrentQuiz(fallbackList);
       setGeneratingQuiz(false);
       playSuccessChime();
-    } catch (err: any) {
       setErrorBanner(
         language === 'en'
-          ? "Failed to generate AI quiz questions. Please try again."
-          : "የፈተና ጥያቄዎችን ማመንጨት አልተቻለም። እባኮትን በድጋሚ ይሞክሩ።"
+          ? "AI was offline or slow. Loaded official practice sheets from local library instead."
+          : "አይ መምህሩ ከመስመር ውጭ በመሆኑ ምክንያት ጥያቄዎችን ከመካነ-መዝገቡ አምጥተናቸዋል::"
       );
-      setGeneratingQuiz(false);
-      playFailureChime();
+      setTimeout(() => setErrorBanner(null), 5000);
     }
   };
 
