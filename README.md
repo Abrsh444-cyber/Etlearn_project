@@ -1,20 +1,55 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# EthioLearn Pro 🎓
 
-# Run and deploy your AI Studio app
+A bilingual (Amharic/English) AI-powered learning platform built for Ethiopian university students.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/7054e383-a276-45e6-981f-1a52674d650a
+- 📚 **Exam Prep** — structured study materials and practice tests
+- 🤖 **AI Tutoring** — personalized AI-powered academic support
+- 🗂️ **Flashcards** — spaced repetition system for efficient memorization
+- 🏛️ **University Directory** — information on Ethiopian universities
+- 📊 **Analytics Dashboard** — track learning progress over time
+- 🌐 **Bilingual Support** — full Amharic and English language support
 
-## Run Locally
+## Tech Stack
 
-**Prerequisites:**  Node.js
+- **Frontend:** Vite + TypeScript
+- **Backend:** Node.js (server.ts)
 
+## Getting Started
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### Prerequisites
+
+- Node.js (v18 or higher recommended)
+- npm
+
+### Installation
+
+\`\`\`bash
+git clone https://github.com/Abrsh444-cyber/Etlearn_project.git
+cd Etlearn_project
+npm install
+\`\`\`
+
+### Running locally
+
+\`\`\`bash
+npm run dev
+\`\`\`
+
+### Build for production
+
+\`\`\`bash
+npm run build
+\`\`\`
+
+## Deployment
+
+This project is deployed via [Netlify](https://netlify.com).
+
+- **Build command:** \`npm run build\`
+- **Publish directory:** \`dist\`
+
+## Author
+
+**Ezra** — Wolkite University
