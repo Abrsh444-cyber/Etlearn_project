@@ -14,17 +14,52 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: 'gradle'  # Optional: if using Gradle
 
-      - name: Install Bubblewrap
-        run: |
-          npm install -g @bubblewrap/cli
+      - name: Install Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli
 
-      - name: Create Bubblewrap config
+      - name: Initialize Bubblewrap (if not already done)
         run: |
-          bubblewrap init --
+          if [ ! -f "bubblewrap.config.json" ]; then
+            echo "Initializing Bubblewrap configuration..."
+            bubblewrap init --manifest https://etlearn-project-kxvp.vercel.app/manifest.webmanifest --name "Etheem" --display-mode fullscreen
+          fi
+        # Update the manifest URL and app name as needed
+
+      - name: Generate or Update Keystore
+        run: |
+          if [ ! -f "keystore.jks" ]; then
+            keytool -genkey -v -keystore keystore.jks \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -alias etheem-alias \
+              -dname "CN=Etheem, OU=Dev, O=Abrsl, L=City, S=State, C=US" \
+              -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
+              -keypass ${{ secrets.KEYSTORE_PASSWORD }}
+          fi
+
+      - name: Build APK with Bubblewrap
+        run: bubblewrap build
+        env:
+          BUBBLEWRAP_INSTALL_JDK: "false"
+          KEYSTORE_PATH: keystore.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ALIAS: etheem-alias
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: etheem-apk
+          path: app/release/*.apk
+          if-no-files-found: warn
