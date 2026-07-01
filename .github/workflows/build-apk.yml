@@ -10,6 +10,9 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
 
+    env:
+      BUBBLEWRAP_INSTALL_JDK: "false"   # This prevents the interactive JDK prompt in all steps
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -33,29 +36,32 @@ jobs:
         run: |
           if [ ! -f "bubblewrap.config.json" ]; then
             echo "Initializing Bubblewrap configuration..."
-            bubblewrap init --manifest https://etlearn-project-kxvp.vercel.app/manifest.webmanifest --name "Etheem" --display-mode fullscreen
+            bubblewrap init --manifest https://etlearn-project-kxvp.vercel.app/manifest.webmanifest \
+              --name "Etheem" \
+              --display-mode fullscreen \
+              --theme-color "#000000" \
+              --background-color "#ffffff" \
+              --shortcut "Etheem"
+          else
+            echo "Bubblewrap configuration already exists."
           fi
-        # Update the manifest URL and app name as needed
 
       - name: Generate or Update Keystore
         run: |
           if [ ! -f "keystore.jks" ]; then
+            echo "Generating new keystore..."
             keytool -genkey -v -keystore keystore.jks \
               -keyalg RSA -keysize 2048 -validity 10000 \
               -alias etheem-alias \
               -dname "CN=Etheem, OU=Dev, O=Abrsl, L=City, S=State, C=US" \
               -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
               -keypass ${{ secrets.KEYSTORE_PASSWORD }}
+          else
+            echo "Keystore already exists."
           fi
 
       - name: Build APK with Bubblewrap
         run: bubblewrap build
-        env:
-          BUBBLEWRAP_INSTALL_JDK: "false"
-          KEYSTORE_PATH: keystore.jks
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          ALIAS: etheem-alias
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
