@@ -12,11 +12,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -29,27 +24,56 @@ jobs:
       - name: Install Bubblewrap
         run: npm install -g @bubblewrap/cli
 
-      - name: Initialize Bubblewrap project
+      - name: Create Bubblewrap config
         run: |
           mkdir apk-build
-          cd apk-build
-          printf "No\n$JAVA_HOME\n" | bubblewrap init \
-            --manifest https://etlearn-project-kxvp.vercel.app/manifest.webmanifest \
-            --directory .
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME }}
+          cat > apk-build/twa-manifest.json << 'EOF'
+          {
+            "packageId": "com.ethiolearn.pro",
+            "host": "etlearn-project-kxvp.vercel.app",
+            "name": "EthioLearn Pro",
+            "launcherName": "EthioLearn",
+            "display": "fullscreen",
+            "themeColor": "#d4af37",
+            "navigationColor": "#1a1a1a",
+            "backgroundColor": "#1a1a1a",
+            "startUrl": "/",
+            "iconUrl": "https://etlearn-project-kxvp.vercel.app/icon-512.png",
+            "maskableIconUrl": "https://etlearn-project-kxvp.vercel.app/icon-512.png",
+            "appVersion": "1.0.0",
+            "appVersionCode": 1,
+            "signingKey": {
+              "path": "android.keystore",
+              "alias": "ethiolearn"
+            },
+            "useBrowserOnChromeOS": false,
+            "splitConfig": false,
+            "webManifestUrl": "https://etlearn-project-kxvp.vercel.app/manifest.webmanifest"
+          }
+          EOF
 
-      - name: Build APK
+      - name: Generate keystore
         run: |
           cd apk-build
-          printf "No\n$JAVA_HOME\n" | bubblewrap build --skipPwaValidation
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME }}
+          keytool -genkeypair -v \
+            -keystore android.keystore \
+            -alias ethiolearn \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass ethiolearn123 \
+            -keypass ethiolearn123 \
+            -dname "CN=EthioLearn Pro, OU=Education, O=EthioLearn, L=Wolkite, S=SNNPR, C=ET"
 
-      - name: Build APK
+      - name: Build APK with Bubblewrap
         run: |
           cd apk-build
-          echo "No" | bubblewrap build --skipPwaValidation
+          bubblewrap build \
+            --skipPwaValidation \
+            --signingKeyPath android.keystore \
+            --signingKeyAlias ethiolearn \
+            --ksPass ethiolearn123 \
+            --keyPass ethiolearn123
         env:
           JAVA_HOME: ${{ env.JAVA_HOME }}
 
