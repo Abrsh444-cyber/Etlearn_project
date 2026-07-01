@@ -1,4 +1,4 @@
-name: Build EthioLearn PWA
+name: Build EthioLearn APK
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -17,17 +17,33 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: Build PWA
-        run: npm run build
-        env:
-          NODE_ENV: production
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Upload build artifact
+      - name: Install Bubblewrap
+        run: npm install -g @bubblewrap/cli
+
+      - name: Initialize Bubblewrap project
+        run: |
+          mkdir apk-build
+          cd apk-build
+          bubblewrap init --manifest https://etlearn-project-kxvp.vercel.app/manifest.webmanifest \
+            --directory .
+
+      - name: Build APK
+        run: |
+          cd apk-build
+          bubblewrap build --skipPwaValidation
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ethiolearn-pro-build
-          path: dist/
-          retention-days: 7
+          name: EthioLearn-Pro-APK
+          path: apk-build/app-release-signed.apk
+          retention-days: 30
