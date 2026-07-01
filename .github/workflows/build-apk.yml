@@ -33,9 +33,16 @@ jobs:
         run: |
           mkdir apk-build
           cd apk-build
-          echo "No" | bubblewrap init \
+          printf "No\n$JAVA_HOME\n" | bubblewrap init \
             --manifest https://etlearn-project-kxvp.vercel.app/manifest.webmanifest \
             --directory .
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME }}
+
+      - name: Build APK
+        run: |
+          cd apk-build
+          printf "No\n$JAVA_HOME\n" | bubblewrap build --skipPwaValidation
         env:
           JAVA_HOME: ${{ env.JAVA_HOME }}
 
