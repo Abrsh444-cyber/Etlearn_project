@@ -37,7 +37,7 @@ jobs:
           if [ ! -f "bubblewrap.config.json" ]; then
             echo "Initializing Bubblewrap configuration..."
             bubblewrap init --manifest https://etlearn-project-kxvp.vercel.app/manifest.webmanifest \
-              --name "Etheem" \
+              --name "Etlearn" \
               --display-mode fullscreen \
               --theme-color "#000000" \
               --background-color "#ffffff" \
@@ -54,8 +54,8 @@ jobs:
               -keyalg RSA -keysize 2048 -validity 10000 \
               -alias etheem-alias \
               -dname "CN=Etheem, OU=Dev, O=Abrsl, L=City, S=State, C=US" \
-              -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
-              -keypass ${{ secrets.KEYSTORE_PASSWORD }}
+              -storepass ${{ secrets.Abmans199698@ }} \
+              -keypass ${{ secrets.Abmans199698@ }}
           else
             echo "Keystore already exists."
           fi
