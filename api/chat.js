@@ -1,14 +1,16 @@
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
 
   const { messages, system } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: 'Server missing GEMINI_API_KEY' });
+    res.status(500).json({ error: 'Server missing GEMINI_API_KEY' });
+    return;
   }
 
   try {
@@ -32,12 +34,27 @@ export default async function handler(req, res) {
     const data = await geminiRes.json();
 
     if (!geminiRes.ok) {
-      return res.status(geminiRes.status).json({ error: data.error?.message || 'Gemini API error' });
+      res.status(geminiRes.status).json({ error: data.error?.message || 'Gemini API error' });
+      return;
     }
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    return res.status(200).json({ text });
+    const fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    });
+
+    const chunkSize = 20;
+    for (let i = 0; i < fullText.length; i += chunkSize) {
+      const chunk = fullText.slice(i, i + chunkSize);
+      const payload = JSON.stringify({ type: 'content_block_delta', delta: { text: chunk } });
+      res.write(`data: ${payload}\n\n`);
+    }
+
+    res.end();
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 }
