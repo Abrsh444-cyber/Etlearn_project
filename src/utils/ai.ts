@@ -35,7 +35,7 @@ export async function submitClaudeChat(
     let useFallback = false;
 
     try {
-      response = await fetch('/api/claude/chat', {
+      response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
