@@ -5,13 +5,13 @@ export default async function handler(req, res) {
   }
 
   const { messages, system } = req.body;
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
 
   console.log('chat.js invoked. Has key:', !!apiKey);
 
   if (!apiKey) {
-    console.error('Missing OPENROUTER_API_KEY');
-    res.status(500).json({ error: 'Server missing OPENROUTER_API_KEY' });
+    console.error('Missing GROQ_API_KEY');
+    res.status(500).json({ error: 'Server missing GROQ_API_KEY' });
     return;
   }
 
@@ -21,24 +21,24 @@ export default async function handler(req, res) {
       ...(messages || []).map(m => ({ role: m.role, content: m.content }))
     ];
 
-    const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'openrouter/free',
+        model: 'llama-3.3-70b-versatile',
         messages: chatMessages
       })
     });
 
-    const data = await orRes.json();
-    console.log('OpenRouter status:', orRes.status, 'Body:', JSON.stringify(data).slice(0, 500));
+    const data = await groqRes.json();
+    console.log('Groq status:', groqRes.status, 'Body:', JSON.stringify(data).slice(0, 500));
 
-    if (!orRes.ok) {
-      console.error('OpenRouter error:', JSON.stringify(data));
-      res.status(orRes.status).json({ error: data.error?.message || 'OpenRouter API error' });
+    if (!groqRes.ok) {
+      console.error('Groq error:', JSON.stringify(data));
+      res.status(groqRes.status).json({ error: data.error?.message || 'Groq API error' });
       return;
     }
 
