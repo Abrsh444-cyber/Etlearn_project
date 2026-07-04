@@ -5,44 +5,44 @@ export default async function handler(req, res) {
   }
 
   const { messages, system } = req.body;
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
 
-  console.log('chat.js invoked. Has key:', !!apiKey, 'Key length:', apiKey?.length);
+  console.log('chat.js invoked. Has key:', !!apiKey);
 
   if (!apiKey) {
-    console.error('Missing GEMINI_API_KEY');
-    res.status(500).json({ error: 'Server missing GEMINI_API_KEY' });
+    console.error('Missing OPENROUTER_API_KEY');
+    res.status(500).json({ error: 'Server missing OPENROUTER_API_KEY' });
     return;
   }
 
   try {
-    const contents = (messages || []).map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
-    }));
+    const chatMessages = [
+      ...(system ? [{ role: 'system', content: system }] : []),
+      ...(messages || []).map(m => ({ role: m.role, content: m.content }))
+    ];
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          systemInstruction: system ? { parts: [{ text: system }] } : undefined
-        })
-      }
-    );
+    const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'openrouter/free',
+        messages: chatMessages
+      })
+    });
 
-    const data = await geminiRes.json();
-    console.log('Gemini status:', geminiRes.status, 'Body:', JSON.stringify(data));
+    const data = await orRes.json();
+    console.log('OpenRouter status:', orRes.status, 'Body:', JSON.stringify(data).slice(0, 500));
 
-    if (!geminiRes.ok) {
-      console.error('Gemini error:', JSON.stringify(data));
-      res.status(geminiRes.status).json({ error: data.error?.message || JSON.stringify(data) || 'Gemini API error' });
+    if (!orRes.ok) {
+      console.error('OpenRouter error:', JSON.stringify(data));
+      res.status(orRes.status).json({ error: data.error?.message || 'OpenRouter API error' });
       return;
     }
 
-    const fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const fullText = data.choices?.[0]?.message?.content || '';
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
